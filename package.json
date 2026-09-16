@@ -1,0 +1,20 @@
+{
+  "name": "ridgeline-offroad",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Open-world offroad 4x4 sim - procedural vehicles, streaming forest, mud and mountains",
+  "scripts": {
+    "dev": "vite",
+    "showroom": "vite --open /showroom.html",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.186.0",
+    "@dimforge/rapier3d-compat": "^0.14.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.5"
+  }
+}
