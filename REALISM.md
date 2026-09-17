@@ -114,12 +114,27 @@ never as edits to the frozen force math.
 - Caveat: fording numbers are tuned against the depth estimator, not yet
   against a real river crossing on the reference machine — playtest item.
 
-### R4 — physics evolution (only after native baselines exist)
-- Record native-vs-native regression traces (PLAN.md replay section), then:
-  brake-hold vs clutchCreep tuning (Sierra HD open issue), tire relaxation
-  length at crawl speeds (kills the low-speed omega jitter at its source),
-  per-surface rolling resistance spread.
-- Each change re-baselines the traces in the same commit.
+### R4 — physics evolution ✅ landed
+Upstream's pattern extended: each behaviour sits behind a Tune field whose
+**neutral value (0) reproduces the reference bit-identically** —
+`reference_tune()` pins them for the golden tests and the parity replays,
+`tune.json` ships the enabled values.
+- ✅ `brakeHold` (1.0): the diffs re-injected engine-side spin into wheels the
+  brake clamp had just stopped — the engine of the brake-held creep. The
+  brake capacity re-applies after the diffs. Measured: all four rigs now hold
+  at 0.008–0.017 m/s on full brake (Sierra HD was 0.5 — open issue closed).
+- ✅ `tireRelax` (0.30 m): tire force relaxation over rolled distance kills
+  the crawl-speed slip oscillation of the point model. Measured at idle
+  creep: wheel omegas went from swinging −2.1…+7.3 rad/s (and disagreeing
+  wheel-to-wheel) to a smooth, matched 1.9–2.4 rad/s that equals body
+  speed / tire radius.
+- ✅ `rollSpread` (1.0): per-surface rolling-resistance spread (rock 0.90 …
+  loam 1.35, mud 1.60, water/snow 1.50) over the reference's flat scale.
+- ✅ Native-vs-native baselines: `--replay=… --game-tune` records traces with
+  the shipped tune (no neutralisation); the three replays are committed at
+  `bench/replays/baselines/*-gametune-r4.json`. Future physics changes rerun
+  and re-baseline in the same commit. The frozen reference parity gate is
+  untouched and still passes.
 
 ## Non-goals
 

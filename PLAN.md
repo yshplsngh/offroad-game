@@ -70,7 +70,11 @@ Gate = native deviation ≤ floor + 3 × the reference's **own** divergence unde
 not work: a 1 µm nudge sends the reference 136 m off course on `shift-brake-v1`.
 All 3 replays pass; on the calm `crawl-turn-v1` native stays within 0.30 m,
 1.5 km/h and 1.7° over 24 s. New replays cannot be gated any more (no reference
-to record them from) — extend with native-vs-native regression traces instead.
+to record them from) — extend with native-vs-native regression traces instead:
+`--replay=<id> --game-tune --trace=<abs path>` records with the shipped tune
+(no neutralisation); the current baselines live in
+`bench/replays/baselines/*-gametune-r4.json` and are re-recorded in the same
+commit as any physics-evolution change (REALISM.md R4).
 
 ### Streaming on the reference iGPU (Iris Xe, 1920×1080, render scale 1.0, `turn-in-place-v1`)
 | Capture | frame p95 / p99 / max | frames > 33 ms | frames with a missing cell | GPU p99 | stream work max |
@@ -123,8 +127,10 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
   drivetrain session pins the original reference perf. Headless run on a dry
   gravel strip: 0–100 km/h 7.8 s, ~125 km/h max (stock trucks ~67 km/h); above
   that the rough terrain keeps it airborne, so top speed is terrain-limited.
-- **Sierra HD cannot hold still on full brake** in low first at idle (~0.5 m/s;
-  Ridgeback ~0.09 m/s). Inherited; brake torque vs `clutchCreep` tuning item.
+- ~~Sierra HD cannot hold still on full brake~~ — fixed by `Tune.brakeHold`
+  (REALISM.md R4): the diffs were re-injecting engine spin into brake-clamped
+  wheels; the brake now re-applies after the diffs. All four rigs hold at
+  0.008–0.017 m/s. Neutral (0) reproduces the reference; goldens/parity pass.
 - `Performance.TIME_PROCESS` includes the vsync wait (reads 16–70 ms while the
   GPU does ~4 ms); the streamer's gate uses measured work instead. Do not
   reintroduce it into any frame-cost budget.
@@ -372,6 +378,9 @@ headlights and a menu clock, `TireAudio` surface noise, `RutTrail`
 visual-only wheel ruts. R3 landed (`VehicleSystems`, game layer only):
 fording depth/flooding, impact damage, fuel, recovery-as-service, rendered
 winch rope with strain audio (`OffroadVehicle.winch_anchor()` exposes state).
+R4 landed: `brakeHold` / `tireRelax` / `rollSpread` Tune fields (neutral = the
+reference bit-identically; goldens and parity pass) + `--game-tune` native
+baselines.
 
 - [x] Chase and close cameras; HUD speed/gear/range/lock/rpm/surface/winch/stuck
 - [x] Keyboard + gamepad bindings (same as the reference)

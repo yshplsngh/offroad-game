@@ -108,7 +108,9 @@ func _ready() -> void:
 		return
 
 	if replay_id != "":
-		add_child(ReplayRunner.new(replay_id, trace_path if trace_path != "" else "user://replay.json"))
+		var game_tune := "--game-tune" in OS.get_cmdline_user_args()
+		add_child(ReplayRunner.new(replay_id,
+				trace_path if trace_path != "" else "user://replay.json", game_tune))
 		return
 
 	field = TerrainField.new()
