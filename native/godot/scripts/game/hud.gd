@@ -34,6 +34,7 @@ func _label(offset: Vector2, size: int, preset: int) -> Label:
 
 func say(text: String, seconds := 2.0) -> void:
 	alert.text = text
+	alert.visible = true  # show even while the tree is paused (update_hud is not running)
 	_alert_timer = seconds
 
 

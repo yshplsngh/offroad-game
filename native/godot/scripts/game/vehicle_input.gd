@@ -29,6 +29,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var name: String = KEY_ACTIONS.get(event.physical_keycode, "")
 		if name != "":
 			action.emit(name)
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		action.emit("click")
 	elif event is InputEventJoypadButton and event.pressed:
 		var name: String = PAD_ACTIONS.get(event.button_index, "")
 		if name != "":

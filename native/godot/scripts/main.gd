@@ -107,6 +107,9 @@ func _ready() -> void:
 
 	input = VehicleInput.new()
 	input.name = "Input"
+	# Keep receiving input while the tree is paused: without this, pausing
+	# disables the input node too and nothing can ever unpause the game.
+	input.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(input)
 	input.action.connect(_on_action)
 
@@ -271,7 +274,20 @@ func _build_ui() -> void:
 
 
 func _on_action(name: String) -> void:
+	# While paused only pause/click (and the overlays) act; gears, recovery and
+	# the rest stay frozen with the game.
+	if paused and name not in ["pause", "click", "help", "debug"]:
+		return
 	match name:
+		"click":
+			# Left click returns to mouse view: recapture the cursor and, if the
+			# pause released it, resume.
+			if chase and chase.mouse_look and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+				if paused:
+					paused = false
+					get_tree().paused = false
+					hud.say("resumed")
 		"gearUp":
 			if vehicle.shift_up(): hud.say("gear %s" % vehicle.telemetry().gear_name, 0.8)
 		"gearDown":
