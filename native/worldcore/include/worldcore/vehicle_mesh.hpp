@@ -41,6 +41,7 @@ struct VehicleDesign {
         int rimInch, spokes;
         uint32_t rimColor;
         bool beadlock;
+        bool road;  // low-profile road tyre (circumferential grooves) instead of mud-terrain blocks
     } tire{};
     struct {
         double travel;
@@ -48,6 +49,7 @@ struct VehicleDesign {
     } suspension{};
     struct {
         bool pickup;
+        bool coupe;  // lofted sports-coupe shell instead of the flat-panel 4x4 body
         int doors;
         double width, sideHeight, glassHeight, hoodDrop, cowlSetback, archClearance, windshieldRake, headlampR,
             glassTint, steeringR;

@@ -59,12 +59,13 @@ int main(int argc, char** argv) {
     const json::Value tuneJson = json::load(data + "/tune.json");
     const json::Value worldJson = json::load(data + "/world.json");
     const json::Value vehiclesJson = json::load(data + "/vehicles.json");
-    const Tune tune;
+    const Tune tune = reference_tune();
+    const Tune defaults;
 
     /* ---- data drift: C++ defaults must equal the data tables ---- */
     size_t tuneFields = 0;
 #define X(name) \
-    check_near(tune.name, tuneJson[#name].n, "tune." #name, 0, 1e-12); \
+    check_near(defaults.name, tuneJson[#name].n, "tune." #name, 0, 1e-12); \
     tuneFields++;
     WORLDCORE_TUNE_FIELDS(X)
 #undef X

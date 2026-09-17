@@ -61,8 +61,8 @@ VehicleModel::VehicleModel(const VehicleSpec& spec, const Tune& tune, const Fiel
     sagU_ = std::max(0.01, tune.staticSag * totalTravel);
     springK_ = staticLoad_ / sagU_;
     const double critical = 2 * std::sqrt(springK_ * (mass_ / 4));
-    dampBump_ = critical * tune.dampBump;
-    dampRebound_ = critical * tune.dampRebound;
+    dampBump_ = critical * tune.dampBump * tune.handlingDamping;
+    dampRebound_ = critical * tune.dampRebound * tune.handlingDamping;
     maxSpring_ = staticLoad_ * tune.maxSpringForceG;
     rayLen_ = totalTravel + tireR_ + 0.6;
     bumpStopU_ = tune.bumpStopStart * totalTravel;
@@ -201,7 +201,7 @@ void VehicleModel::solve_suspension(double dt) {
         w.normal = hit.n;
     }
 
-    const std::array<std::array<double, 3>, 2> bars{{{0, 1, tune_.antiRollFront}, {2, 3, tune_.antiRollRear}}};
+    const std::array<std::array<double, 3>, 2> bars{{{0, 1, tune_.antiRollFront * tune_.handlingAntiRoll}, {2, 3, tune_.antiRollRear * tune_.handlingAntiRoll}}};
     for (const auto& bar : bars) {
         Wheel& wa = wheels_[static_cast<size_t>(bar[0])];
         Wheel& wb = wheels_[static_cast<size_t>(bar[1])];

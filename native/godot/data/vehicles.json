@@ -293,59 +293,60 @@
       "rhd": false,
       "id": "timberwolf",
       "name": "Timberwolf SS",
-      "tagline": "Supercar engine in a trail rig. 900 kW, sticky tyres, traction control.",
+      "tagline": "Rear-engined sports coupe. 900 kW, sticky road tyres, traction control.",
       "frame": {
-        "frameWidth": 0.92,
-        "railHeight": 0.14,
-        "wheelbase": 2.57,
-        "frontOverhang": 0.66,
-        "rearOverhang": 0.82,
-        "railY": 0.5191
+        "frameWidth": 0.9,
+        "railHeight": 0.06,
+        "wheelbase": 2.45,
+        "frontOverhang": 0.95,
+        "rearOverhang": 1.02,
+        "railY": 0.13
       },
       "axle": {
-        "tubeR": 0.05,
-        "diffOffset": 0.16,
-        "track": 1.5
+        "tubeR": 0.04,
+        "diffOffset": 0.0,
+        "track": 1.6
       },
       "tire": {
         "spokes": 5,
-        "rimColor": "#d8d4c8",
+        "rimColor": "#c9ccd2",
         "beadlock": false,
-        "diameter": 0.8382,
-        "width": 0.29209999999999997,
-        "rimInch": 15
+        "diameter": 0.68,
+        "width": 0.285,
+        "rimInch": 20,
+        "tread": "road"
       },
       "suspension": {
-        "travel": 0.24,
-        "shockColor": "#3f8f4f"
+        "travel": 0.14,
+        "shockColor": "#c9a227"
       },
       "body": {
-        "style": "wagon",
-        "doors": 4,
-        "sideHeight": 0.56,
-        "glassHeight": 0.5,
-        "hoodDrop": 0.1,
-        "cowlSetback": 0.26,
-        "archClearance": 0.075,
-        "windshieldRake": 0.3,
-        "headlampR": 0.1,
-        "glassTint": 0.12,
-        "steeringR": 0.185,
-        "matte": true,
-        "width": 1.72,
-        "color": "#2f6f8f"
+        "style": "coupe",
+        "doors": 2,
+        "sideHeight": 0.58,
+        "glassHeight": 0.46,
+        "hoodDrop": 0.13,
+        "cowlSetback": 0.55,
+        "archClearance": 0.035,
+        "windshieldRake": 0.55,
+        "headlampR": 0.085,
+        "glassTint": 0.3,
+        "steeringR": 0.18,
+        "matte": false,
+        "width": 1.78,
+        "color": "#b3121a"
       },
       "features": {
-        "cage": true,
-        "winch": true,
+        "cage": false,
+        "winch": false,
         "snorkel": false,
-        "lightBar": true,
-        "roofRack": true,
-        "spare": true,
-        "flares": true,
-        "sliders": true,
-        "rearBumper": true,
-        "kit": true
+        "lightBar": false,
+        "roofRack": false,
+        "spare": false,
+        "flares": false,
+        "sliders": false,
+        "rearBumper": false,
+        "kit": false
       },
       "perf": {
         "mass": 1620,
@@ -362,25 +363,25 @@
         ],
         "finalDrive": 3.3,
         "brakeTorque": 6000,
-        "tireGrip": 1.5,
+        "tireGrip": 1.15,
         "tractionControl": 0.9
       },
       "physics": {
-        "wheelRadius": 0.4191,
-        "sillY": 0.6391,
-        "roofY": 1.6991,
-        "zFront": 1.8649999999999998,
-        "zRear": -2.025,
+        "wheelRadius": 0.34,
+        "sillY": 0.21,
+        "roofY": 1.25,
+        "zFront": 2.095,
+        "zRear": -2.165,
         "chassisBox": {
           "halfExtents": [
-            0.86,
-            0.63,
-            1.9449999999999998
+            0.88,
+            0.48,
+            2.13
           ],
           "centre": [
             0,
-            1.1691,
-            -0.08000000000000007
+            0.77,
+            -0.035
           ]
         }
       }

@@ -236,6 +236,7 @@ Dictionary OffroadVehicle::wheel(int index) const {
     d["spin"] = w.spin;
     d["omega"] = w.omega;
     d["travel"] = w.travel;
+    d["sink"] = w.sink;
     d["contact"] = w.contact;
     d["load"] = w.load;
     d["slip"] = w.slip;

@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
     const json::Value g = json::load(golden);
     const json::Value vehicles = json::load(data + "/vehicles.json");
     const json::Value replays = json::load(data + "/replays.json");
-    const Tune tune;
+    const Tune tune = reference_tune();
 
     for (const auto& session : g["sessions"].a) {
         const std::string rid = session["replay"].s;

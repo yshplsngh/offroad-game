@@ -29,7 +29,7 @@ inline double peak_friction(const SurfaceInfo& surface, double wetness, double l
                             const Tune& tune) {
     const double wet = 1 - tune.wetnessGripLoss * wetness;
     const double loadDrop = 1 - tune.loadSensitivity * (load / std::max(1.0, nominal) - 1);
-    return std::max(0.05, surface.friction * wet * tune.gripScale * std::max(0.55, loadDrop));
+    return std::max(0.05, surface.friction * wet * tune.gripScale * tune.handlingGrip * std::max(0.55, loadDrop));
 }
 
 /// Combined-slip tire force.
@@ -45,7 +45,8 @@ inline TireResult tire_force(double load, double mu, double vLong, double vLat, 
     const double s = std::hypot(kn, an);
     if (s < 1e-6 || load <= 0) return out;
 
-    const double curve = slip_curve(s, tune.slipFalloff);
+    double curve = slip_curve(s, tune.slipFalloff);
+    if (s > 1) curve = std::max(curve, tune.handlingSlideGrip);  // past the peak: keep some bite
     const double grip = curve / s;
     const double cap = mu * load;
     out.fx = cap * grip * kn;
