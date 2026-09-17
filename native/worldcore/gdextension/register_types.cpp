@@ -5,6 +5,7 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
+#include "ground_patch.hpp"
 #include "offroad_vehicle.hpp"
 #include "terrain_field.hpp"
 #include "terrain_streamer.hpp"
@@ -19,6 +20,7 @@ void initialize_worldcore(ModuleInitializationLevel level) {
     if (level != MODULE_INITIALIZATION_LEVEL_SCENE) return;
     GDREGISTER_CLASS(TerrainField);
     GDREGISTER_CLASS(OffroadVehicle);
+    GDREGISTER_CLASS(GroundPatch);
     GDREGISTER_CLASS(TerrainStreamer);
     GDREGISTER_CLASS(VegetationStreamer);
     GDREGISTER_CLASS(VehicleMeshLibrary);

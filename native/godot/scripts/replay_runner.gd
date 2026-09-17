@@ -49,6 +49,13 @@ func _ready() -> void:
 		_quit(2, "vehicle configure failed")
 		return
 	vehicle.spawn(spawn.x, spawn.z, float(replay.heading))
+	# Same physics world as the game: the chassis ground patch rides along. The
+	# chassis never touches ground in the frozen replays, so traces are
+	# unchanged - tools/parity.sh is the proof.
+	var patch := GroundPatch.new()
+	patch.name = "GroundPatch"
+	add_child(patch)
+	patch.configure(field, vehicle)
 	set_physics_process_priority(0)
 
 

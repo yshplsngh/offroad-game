@@ -8,6 +8,9 @@
 #   --smoke       camera turns in place at spawn for a few seconds while the
 #                 truck sits on the brake; print stats and quit (replay
 #                 turn-in-place-v1). Exit 3 if the truck did not settle.
+#   --roll        with --smoke: half-roll the truck onto its roof at t=1s;
+#                 settling then means the chassis rests on the ground patch
+#                 instead of falling through the world
 #   --camera=chase     with --smoke: keep the chase camera on the truck instead
 #   --orbit=DEG        with --smoke: chase camera orbited around the truck (90 = side, 180 = front)
 #   --zoom=K           with --smoke: chase camera distance multiplier (0.4 = close-up)
@@ -20,6 +23,8 @@ extends Node3D
 var seed := 1337
 var vehicle_index := 0
 var smoke := false
+var roll_test := false
+var _rolled := false
 var smoke_chase := false
 var smoke_orbit := 0.0
 var smoke_zoom := 1.0
@@ -33,6 +38,7 @@ var field: TerrainField
 var terrain: TerrainStreamer
 var vegetation: VegetationStreamer
 var vehicle: OffroadVehicle
+var patch: GroundPatch
 var visual: VehicleVisual
 var input: VehicleInput
 var hud: GameHud
@@ -61,6 +67,8 @@ func _ready() -> void:
 			vehicle_index = int(arg.get_slice("=", 1))
 		elif arg == "--smoke":
 			smoke = true
+		elif arg == "--roll":
+			roll_test = true
 		elif arg.begins_with("--stream-workers="):
 			stream_workers = int(arg.get_slice("=", 1))
 		elif arg == "--camera=chase":
@@ -185,6 +193,14 @@ func _spawn_vehicle(index: int, x: float, z: float, heading: float) -> void:
 	add_child(vehicle)
 	vehicle.configure(spec, tune_data, field)
 	vehicle.spawn(x, z, heading)
+	# Chassis heightfield patch: the only ground geometry in the physics world.
+	# Wheels stay on the analytic queries; this catches a rolled or bottoming
+	# chassis that previously fell through.
+	if patch == null:
+		patch = GroundPatch.new()
+		patch.name = "GroundPatch"
+		add_child(patch)
+	patch.configure(field, vehicle)
 	visual = VehicleVisual.new()
 	visual.name = "VehicleVisual"
 	add_child(visual)
@@ -285,6 +301,13 @@ func _physics_process(_delta: float) -> void:
 	if smoke:
 		# Foot on the brake: in low first the truck creeps at idle, like the reference.
 		vehicle.set_input(0, 1, 0, 0, 0)
+		if roll_test and not _rolled and _elapsed > 1.0:
+			# Half-roll with hangtime so the truck comes down on its roof/side:
+			# only the chassis can catch it there, and without the ground patch
+			# it fell through the world.
+			_rolled = true
+			vehicle.angular_velocity = Vector3(0, 0, 4.0)
+			vehicle.linear_velocity = Vector3(0, 5.0, 0)
 		return
 	input.poll()
 	vehicle.set_input(input.throttle, input.brake, input.handbrake, input.steer, input.winch)
@@ -315,25 +338,33 @@ func _process(delta: float) -> void:
 	if hud.stats.visible or smoke:
 		var p := vehicle.global_position
 		var s := field.sample(p.x, p.z)
-		stats_text = "fps %d | draws %d | cells %d (+%d missing, %d queued) | built %d retired %d stale %d | p95 %.1f ms attach %.2f ms | veg %d cells %d batches %d stems | biome %d" % [
+		var ps := patch.stats()
+		stats_text = "fps %d | draws %d | cells %d (+%d missing, %d queued) | built %d retired %d stale %d | p95 %.1f ms attach %.2f ms | veg %d cells %d batches %d stems | patch %d refills %.2f ms | biome %d" % [
 			Engine.get_frames_per_second(),
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 			live, missing, ts.queued, ts.jobs_built, ts.retired, ts.cancelled + ts.dropped_stale,
-			ts.rolling_p95_ms, ts.attach_ms, vs.live_cells, vs.live_batches, vs.live_instances, s.biome]
+			ts.rolling_p95_ms, ts.attach_ms, vs.live_cells, vs.live_batches, vs.live_instances,
+			ps.refills, ps.worst_refill_ms, s.biome]
 	hud.update_hud(vehicle.telemetry(), delta, stats_text)
 
-	if smoke and _elapsed > 6.0:
+	if smoke and _elapsed > (8.0 if roll_test else 6.0):
 		var t := vehicle.telemetry()
 		# < 1 m/s: the heavy trucks inherit a slow brake-held creep from the reference.
-		var settled: bool = absf(t.speed) < 1.0 and t.airborne == 0
-		print("ridgeline: smoke %s frames=%d avg_fps=%.1f worst_ms=%.1f cells=%d built=%d retired=%d stale=%d missing=%d worst_attach_ms=%.2f p95_cost_ms=%.1f deferred=%d veg_cells=%d veg_batches=%d veg_instances=%d veg_missing=%d veg_worst_attach_ms=%.2f draws=%d vehicle_steps=%d vehicle_speed=%.3f airborne=%d" % [
+		# Rolled, the wheels point anywhere (airborne stays set) - resting on the
+		# ground patch near the analytic surface is what passes.
+		var p := vehicle.global_position
+		var above: bool = p.y > field.height(p.x, p.z) - 1.0
+		var settled: bool = absf(t.speed) < 1.0 and (t.airborne == 0 or roll_test) and above
+		var ps := patch.stats()
+		print("ridgeline: smoke %s frames=%d avg_fps=%.1f worst_ms=%.1f cells=%d built=%d retired=%d stale=%d missing=%d worst_attach_ms=%.2f p95_cost_ms=%.1f deferred=%d veg_cells=%d veg_batches=%d veg_instances=%d veg_missing=%d veg_worst_attach_ms=%.2f draws=%d vehicle_steps=%d vehicle_speed=%.3f airborne=%d pos_y=%.2f ground=%.2f patch_refills=%d patch_worst_ms=%.2f" % [
 			"ok" if settled else "FAILED (vehicle did not settle)",
 			_frames, _frames / _elapsed, _worst_ms, live, ts.jobs_built,
 			ts.retired, ts.cancelled + ts.dropped_stale, missing, ts.worst_attach_ms,
 			ts.rolling_p95_ms, ts.deferred_over_budget,
 			vs.live_cells, vs.live_batches, vs.live_instances, vs.missing_visible, vs.worst_attach_ms,
 			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
-			vehicle.get_steps(), t.speed, t.airborne])
+			vehicle.get_steps(), t.speed, t.airborne,
+			p.y, field.height(p.x, p.z), ps.refills, ps.worst_refill_ms])
 		if capture != null:
 			capture.save(capture_path)
 		if screenshot != "" and DisplayServer.get_name() != "headless":

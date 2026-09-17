@@ -102,6 +102,7 @@ if(WORLDCORE_GODOT)
     gdextension/register_types.cpp
     gdextension/terrain_field.cpp
     gdextension/offroad_vehicle.cpp
+    gdextension/ground_patch.cpp
     gdextension/terrain_streamer.cpp
     gdextension/vegetation_streamer.cpp
     gdextension/vehicle_mesh_library.cpp
