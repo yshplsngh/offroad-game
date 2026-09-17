@@ -38,7 +38,7 @@ Conventions: `+X` east, `+Y` up, `+Z` north/forward. 1 unit = 1 metre.
 | 0 | Benchmarks, capture format, skeletons | **partial** | `bench/` format + `FrameCapture`; reference-iGPU manifest; native 1080p captures committed (`bench/captures/fedora-iris-xe/`) | Discrete-GPU control machine manifest + captures. Browser-side baselines are no longer possible (build removed); native captures are the baseline. |
 | 1 | Native vertical slice | **done** (placeholder truck) | Window, keyboard/gamepad input, HUD, Jolt `OffroadVehicle` at 60 Hz, analytic terrain, decal blob shadow, chase camera, release export launches directly | Truck body is placeholder boxes until milestone 4 |
 | 2 | Streaming scheduler + worker terrain | **done** | C++ `StreamScheduler` + `TerrainStreamer`: frustum/turn-margin/prefetch selection, worker builds, generation ids, attach/upload/retire budgets, p95 work gate, no full ring at boot | Unexplained frame stalls on the first run after an export (see Open issues) |
-| 3 | Static per-cell vegetation, LOD bake, local collision | **partial** | Placement port (exact vs oracle), immutable per-cell rule; flora prototypes ported and baked at build time (`worldcore_bake` → `generated/flora.bin`); `VegetationStreamer`: one multimesh per cell + species + LOD + variant with exact AABBs, static shaders, no shadows | Local collision set (trunks/boulders/logs + chassis heightfield patch, fixes fall-through); `obstaclesNear` query; density presets |
+| 3 | Static per-cell vegetation, LOD bake, local collision | **partial** | Placement port (exact vs oracle), immutable per-cell rule; flora prototypes ported and baked at build time (`worldcore_bake` → `generated/flora.bin`); `VegetationStreamer`: one multimesh per cell + species + LOD + variant with exact AABBs, static shaders, no shadows; chassis heightfield patch (`GroundPatch`): 16 m Jolt heightfield under the truck from the analytic field, recentred on a 0.5 m lattice, fixes rolled-truck fall-through (gated by `--smoke --roll`; refill ≤ 0.3 ms warm, replays unchanged per `tools/parity.sh`) | Local collision set (trunks/boulders/logs); `obstaclesNear` query; density presets |
 | 4 | Vehicle bake + physics parity, camera modes, settings | **partial** | Tire/drivetrain/controller exact ports; Jolt replay parity; chase + close camera; telemetry; **procedural vehicle baker**: C++ mesh kernel + ported body/chassis/wheel/interior/accessory builders, 3 LODs, statics merged by material layer, rigged axles/wheels/links/coilovers/steering wheel (`VehicleMeshLibrary`, `vehicle_visual.gd`) | Cockpit/bonnet/orbit/cinematic cameras; settings; lights and mud driven by gameplay (shader inputs exist); surface detail (normal maps) |
 | 5 | Sky/shaders, audio, FX, presets, stress tests | **not started** | Placeholder `ProceduralSkyMaterial`, static terrain shader | Everything |
 | 6 | Release export + Fedora RPM | **partial** | `ridgeline-offroad-0.1.0-1` and `-2` RPMs built (`build/rpms/`); `%check` ran all test suites + packaged smoke test; release 2 adds runtime `Requires` (Vulkan, Wayland/X11, audio) and Godot licence notices; payload verified: no web/Node artefacts | Install → launch → upgrade 1→2 → uninstall on the local machine (needs `sudo`, run by the user); release 3 with vegetation; real licence |
@@ -70,7 +70,11 @@ Gate = native deviation ≤ floor + 3 × the reference's **own** divergence unde
 not work: a 1 µm nudge sends the reference 136 m off course on `shift-brake-v1`.
 All 3 replays pass; on the calm `crawl-turn-v1` native stays within 0.30 m,
 1.5 km/h and 1.7° over 24 s. New replays cannot be gated any more (no reference
-to record them from) — extend with native-vs-native regression traces instead.
+to record them from) — extend with native-vs-native regression traces instead:
+`--replay=<id> --game-tune --trace=<abs path>` records with the shipped tune
+(no neutralisation); the current baselines live in
+`bench/replays/baselines/*-gametune-r4.json` and are re-recorded in the same
+commit as any physics-evolution change (REALISM.md R4).
 
 ### Streaming on the reference iGPU (Iris Xe, 1920×1080, render scale 1.0, `turn-in-place-v1`)
 | Capture | frame p95 / p99 / max | frames > 33 ms | frames with a missing cell | GPU p99 | stream work max |
@@ -93,10 +97,13 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
   stream work ≤ 2.3 ms and GPU ≤ 8 ms in those frames — not the streamer, not the
   GPU. Suspected cold shader/pipeline cache or system load; **not proven**.
   Worker count (1 vs 4) made no measurable difference.
-- ~~A rolled truck falls through the world~~ — fixed: `GroundCollider`
-  (`scripts/game/ground_collider.gd`) keeps a 64 m, 2 m-spacing `HeightMapShape3D`
-  under and ahead of the truck, filled by `TerrainField.height_grid` in C++
-  (~0.6–1.1 ms per re-centre). Trunk/boulder colliders are still milestone 3.
+- ~~A rolled truck falls through the world~~ — fixed by the chassis
+  heightfield patch. Two parallel implementations existed after a branch
+  merge: `GroundPatch` (C++ node, 16 m at 0.5 m spacing, lattice-snapped,
+  `--smoke --roll` gate) and `GroundCollider` (GDScript, 64 m at 2 m with
+  velocity look-ahead). The merge kept **`GroundPatch`**; the
+  `TerrainField.height_grid` C++ API from the other branch is retained.
+  Trunk/boulder colliders are still milestone 3.
 - **Game handling layer** (`Tune.handling*`, in `tune.json`): grip ×1.35 on every
   surface, sliding/spinning tyres keep 85% of peak grip (the reference drops to
   15–50%, which felt like ice on grass), damping ×1.8, anti-roll ×3.
@@ -120,12 +127,18 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
   drivetrain session pins the original reference perf. Headless run on a dry
   gravel strip: 0–100 km/h 7.8 s, ~125 km/h max (stock trucks ~67 km/h); above
   that the rough terrain keeps it airborne, so top speed is terrain-limited.
-- **Sierra HD cannot hold still on full brake** in low first at idle (~0.5 m/s;
-  Ridgeback ~0.09 m/s). Inherited; brake torque vs `clutchCreep` tuning item.
+- ~~Sierra HD cannot hold still on full brake~~ — fixed by `Tune.brakeHold`
+  (REALISM.md R4): the diffs were re-injecting engine spin into brake-clamped
+  wheels; the brake now re-applies after the diffs. All four rigs hold at
+  0.008–0.017 m/s. Neutral (0) reproduces the reference; goldens/parity pass.
 - `Performance.TIME_PROCESS` includes the vsync wait (reads 16–70 ms while the
   GPU does ~4 ms); the streamer's gate uses measured work instead. Do not
   reintroduce it into any frame-cost budget.
-- Terrain shading reads washed out, with an unexplained grey patch near spawn.
+- ~~Terrain shading reads washed out, with an unexplained grey patch near
+  spawn.~~ R2 shading pass (fog 0.0007, contrast/saturation grading, stronger
+  wetness darkening) fixed the wash; the "patch" was rock/scree reading flat
+  under it plus a WheelFX mis-emission at locked brakes (see REALISM.md R2).
+  Verify on the Fedora reference iGPU before closing for good.
 - Vegetation draw calls (~360) are dominated by far cells with several variants
   each; if a capture ever shows CPU render cost, merge far-LOD variants per cell.
 - Grass detail texture: procedural tufts + normal map baked by `worldcore_bake`
@@ -152,8 +165,9 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
    install release 1, launch, upgrade to release 2, launch, uninstall.
 2. ~~Milestone 3 vegetation rendering~~ ✅ placement, flora bake and per-cell
    multimesh streaming are done (see Evidence).
-3. **Local collision set** around the truck: trunk/boulder/log colliders and a
-   heightfield patch for the chassis (fixes the fall-through bug).
+3. **Local collision set** around the truck: trunk/boulder/log colliders.
+   ~~Chassis heightfield patch~~ ✅ `GroundPatch` (fixes the fall-through bug;
+   see milestone 3).
 4. ~~Milestone 4 — vehicle baker~~ ✅ built (see milestone table). Next on the
    vehicle: headlights/brake lights and mud from gameplay, cockpit and other
    camera modes, surface detail.
@@ -355,16 +369,43 @@ near-vehicle obstacle set         ─► only the small collision radius gets co
 
 # Game layer backlog
 
+Realism roadmap: see [REALISM.md](REALISM.md) (research, tranches R1-R4,
+budgets). R1 landed: pedal-answering lights (`H` + menu), mud/dirt
+accumulation on the body, procedural engine audio (menu volume, persisted),
+speed-driven FOV, per-wheel dust/mud/spray particles. R2 landed: terrain
+shading pass (fog/grading/wetness), `SkyCycle` time-of-day with auto
+headlights and a menu clock, `TireAudio` surface noise, `RutTrail`
+visual-only wheel ruts. R3 landed (`VehicleSystems`, game layer only):
+fording depth/flooding, impact damage, fuel, recovery-as-service, rendered
+winch rope with strain audio (`OffroadVehicle.winch_anchor()` exposes state).
+R4 landed: `brakeHold` / `tireRelax` / `rollSpread` Tune fields (neutral = the
+reference bit-identically; goldens and parity pass) + `--game-tune` native
+baselines.
+
 - [x] Chase and close cameras; HUD speed/gear/range/lock/rpm/surface/winch/stuck
 - [x] Keyboard + gamepad bindings (same as the reference)
+- [x] Auto-hold (game layer): brake held for the model off-throttle near
+      standstill, released on throttle/winch - without it clutchCreep drives
+      the parked truck away with the tires turning and jittering forever
+      (inherited from the reference). Re-engage threshold must stay above the
+      ~1-1.7 m/s the creep sustains, or a truck that has driven never parks.
+- [x] Automatic reverse (game layer): holding S near standstill shifts to R
+      and S becomes reverse throttle; W brakes, and from a reverse stop
+      shifts back to first. Q/E manual shifting untouched.
+- [x] Mouse look on the chase camera: captured mouse orbits/elevates, eases
+      back behind the truck when the mouse rests and the truck is moving;
+      pause releases the cursor.
 - [ ] Cockpit, bonnet, orbit, cinematic cameras
 - [ ] Trail objectives, waypoints, recovery points, free-roam map
 - [ ] Damage model, fuel, water fording depth
-- [ ] Save/load (start from `worldcore::IntegratedState`), settings, graphics presets
+- [ ] Save/load (start from `worldcore::IntegratedState`), settings, graphics
+      presets — started: pause menu with a mouse-sensitivity slider persisted
+      to `user://settings.cfg` (`[input] mouse_sensitivity`)
 
-**Controls:** `WASD` drive · `Space` handbrake · `Q/E` gears · `L` range ·
-`X` diff lock · `R` recover · `F` winch hook · `G` reel in · `C` camera ·
-`V` next vehicle · `P`/`Esc` pause · `/` help · `` ` `` stats
+**Controls:** `WASD` drive (hold `S` at a stop to reverse) · mouse look ·
+`Space` handbrake · `Q/E` gears · `L` range · `X` diff lock · `R` recover ·
+`F` winch hook · `G` reel in · `C` camera · `V` next vehicle ·
+`P`/`Esc` pause · `/` help · `` ` `` stats
 
 ---
 
@@ -393,6 +434,7 @@ packaging/fedora/build-rpm.sh
 ```
 
 Game options after `--`: `--seed=N`, `--vehicle=0..3`, `--smoke`,
+`--roll` (with `--smoke`: rolled-truck ground-patch gate),
 `--camera=chase`, `--screenshot=PATH`, `--capture=PATH`, `--stream-workers=N`,
 `--replay=ID --trace=PATH`.
 
@@ -426,6 +468,11 @@ Game options after `--`: `--seed=N`, `--vehicle=0..3`, `--smoke`,
 - **Never spawn the truck in the air:** place it at its static ride height,
   `travel × (1 − 2·staticSag)` above the ground (`VehicleModel::spawn_pose`).
 - **Mud is gated on soft AND wet ground**, not wheelspin alone.
+- **The physics world has no ground mesh** — wheels ride the analytic field, so
+  a rolled truck's chassis fell through the world. `GroundPatch` keeps a small
+  heightfield under the truck; its heights sit 2 cm *below* the analytic
+  surface so bilinear interpolation never pokes above the true ground into the
+  chassis during normal driving. Wheels must never query the patch.
 - **Scatter density is per m², never per cell.**
 - Gravity is 9.81 (Godot's default 9.8 was changed in `project.godot`).
 - JS `Math.round` rounds halves toward +∞ (`js_round`), and the terrain's

@@ -247,16 +247,38 @@ double VehicleModel::solve_tires(double dt) {
             const double mu = peak_friction(surf, w.wetness, w.load, staticLoad_, tune_) * spec_.perf.tireGrip;
             const TireResult tire = tire_force(w.load, mu, vLong, vLat, wheelSpeed, tune_);
 
-            w.lng = tire.fx;
-            w.lat = tire.fy;
+            double fx = tire.fx;
+            double fy = tire.fy;
+            if (tune_.tireRelax > 0) {
+                // R4: force relaxation - the carcass winds up over rolled
+                // distance, which kills the crawl-speed slip oscillation the
+                // point model suffers near v = 0. tireRelax = 0 is the exact
+                // reference (fx/fy pass through unfiltered).
+                const double rolled = std::max(std::fabs(vLong), std::fabs(wheelSpeed)) * dt;
+                const double a = std::min(1.0, (rolled + 0.002) / tune_.tireRelax);
+                fx = w.lng + (tire.fx - w.lng) * a;
+                fy = w.lat + (tire.fy - w.lat) * a;
+            }
+            w.lng = fx;
+            w.lat = fy;
             w.slip = tire.combined;
             w.slipRatio = tire.slipRatio;
             if (tire.combined > slipMax) slipMax = tire.combined;
 
-            add_force(wFwd * tire.fx + wRight * tire.fy, w.contactPoint + w.normal * (tune_.tireForceHeight * tireR_));
+            add_force(wFwd * fx + wRight * fy, w.contactPoint + w.normal * (tune_.tireForceHeight * tireR_));
 
-            torque -= tire.fx * tireR_;
-            torque -= js_sign(w.omega) * rolling_resistance(surf, w.wetness, w.load, tireR_, tune_);
+            torque -= fx * tireR_;
+            double rr = rolling_resistance(surf, w.wetness, w.load, tireR_, tune_);
+            if (tune_.rollSpread > 0) {
+                // R4: surfaces differ in how hard they are to roll over - the
+                // reference used one flat scale. Deviation from 1 scales with
+                // rollSpread (0 = reference).
+                static constexpr double kRollSpread[8] = {0.90, 1.15, 1.00, 1.05,
+                                                          1.35, 1.60, 1.50, 1.50};
+                const int s = std::clamp(w.surface, 0, 7);
+                rr *= 1.0 + tune_.rollSpread * (kRollSpread[s] - 1.0);
+            }
+            torque -= js_sign(w.omega) * rr;
 
             if (w.sink > 0.005) {
                 bogged += w.sink;
@@ -285,7 +307,17 @@ double VehicleModel::solve_tires(double dt) {
 
     drivetrain_.apply_diffs(omega_, dt);
     for (Wheel& w : wheels_) {
-        w.omega = omega_[static_cast<size_t>(w.index)];
+        const size_t i = static_cast<size_t>(w.index);
+        w.omega = omega_[i];
+        // R4: the diffs above re-inject engine-side spin into wheels the brake
+        // clamp just stopped - the engine of the brake-held creep (a braked
+        // truck drove itself at up to 0.5 m/s). brakeHold re-applies the brake
+        // capacity after the diffs; 0 = reference behaviour.
+        if (tune_.brakeHold > 0 && brakes_[i] > 0) {
+            const double dOmega = (brakes_[i] * dt / wheelInertia_) * tune_.brakeHold;
+            w.omega = std::fabs(w.omega) <= dOmega ? 0 : w.omega - js_sign(w.omega) * dOmega;
+            omega_[i] = w.omega;
+        }
         w.spin += w.omega * dt;
     }
 

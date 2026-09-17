@@ -228,6 +228,12 @@ Dictionary OffroadVehicle::telemetry() const {
     return d;
 }
 
+Vector3 OffroadVehicle::winch_anchor() const {
+    if (model_ && model_->state().winchAnchor)
+        return to_godot(*model_->state().winchAnchor);
+    return Vector3(0, -1e9, 0);
+}
+
 Dictionary OffroadVehicle::wheel(int index) const {
     Dictionary d;
     if (!model_ || index < 0 || index > 3) return d;
@@ -257,6 +263,7 @@ void OffroadVehicle::_bind_methods() {
     ClassDB::bind_method(D_METHOD("winch_attach"), &OffroadVehicle::winch_attach);
     ClassDB::bind_method(D_METHOD("telemetry"), &OffroadVehicle::telemetry);
     ClassDB::bind_method(D_METHOD("wheel", "index"), &OffroadVehicle::wheel);
+    ClassDB::bind_method(D_METHOD("winch_anchor"), &OffroadVehicle::winch_anchor);
     ClassDB::bind_method(D_METHOD("get_steps"), &OffroadVehicle::get_steps);
     ClassDB::bind_method(D_METHOD("get_ride_height"), &OffroadVehicle::get_ride_height);
 }

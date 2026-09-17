@@ -9,6 +9,7 @@ const KEY_ACTIONS := {
 	KEY_E: "gearUp", KEY_Q: "gearDown", KEY_X: "lock", KEY_L: "range",
 	KEY_C: "camera", KEY_R: "recover", KEY_F: "winch", KEY_P: "pause",
 	KEY_ESCAPE: "pause", KEY_QUOTELEFT: "debug", KEY_SLASH: "help", KEY_V: "nextVehicle",
+	KEY_H: "lights",
 }
 const PAD_ACTIONS := {
 	JOY_BUTTON_A: "recover", JOY_BUTTON_B: "lock", JOY_BUTTON_X: "winch", JOY_BUTTON_Y: "camera",
@@ -29,6 +30,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var name: String = KEY_ACTIONS.get(event.physical_keycode, "")
 		if name != "":
 			action.emit(name)
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		action.emit("click")
 	elif event is InputEventJoypadButton and event.pressed:
 		var name: String = PAD_ACTIONS.get(event.button_index, "")
 		if name != "":
