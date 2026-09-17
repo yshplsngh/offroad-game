@@ -10,6 +10,7 @@
 #                 turn-in-place-v1). Exit 3 if the truck did not settle.
 #   --camera=chase     with --smoke: keep the chase camera on the truck instead
 #   --orbit=DEG        with --smoke: chase camera orbited around the truck (90 = side, 180 = front)
+#   --drive            with --smoke: floor it and turn (diff locked) instead of braking
 #   --zoom=K           with --smoke: chase camera distance multiplier (0.4 = close-up)
 #   --stream-workers=N terrain build threads (default: cores - 2, max 4)
 #   --screenshot=PATH  with --smoke: save the last rendered frame as PNG
@@ -23,6 +24,8 @@ var smoke := false
 var smoke_chase := false
 var smoke_orbit := 0.0
 var smoke_zoom := 1.0
+var smoke_drive := false
+var _drive_ticks := 0
 var ground: GroundCollider
 var stream_workers := 0
 var screenshot := ""
@@ -62,6 +65,8 @@ func _ready() -> void:
 			vehicle_index = int(arg.get_slice("=", 1))
 		elif arg == "--smoke":
 			smoke = true
+		elif arg == "--drive":
+			smoke_drive = true
 		elif arg.begins_with("--stream-workers="):
 			stream_workers = int(arg.get_slice("=", 1))
 		elif arg == "--camera=chase":
@@ -288,7 +293,14 @@ func _physics_process(_delta: float) -> void:
 	ground.follow(vehicle)
 	if smoke:
 		# Foot on the brake: in low first the truck creeps at idle, like the reference.
-		vehicle.set_input(0, 1, 0, 0, 0)
+		if smoke_drive:
+			_drive_ticks += 1
+			if _drive_ticks == 1:
+				vehicle.cycle_lock()
+				vehicle.cycle_lock()
+			vehicle.set_input(1, 0, 0, 0.0 if _drive_ticks < 120 else 0.7, 0)
+		else:
+			vehicle.set_input(0, 1, 0, 0, 0)
 		return
 	input.poll()
 	vehicle.set_input(input.throttle, input.brake, input.handbrake, input.steer, input.winch)
@@ -329,7 +341,7 @@ func _process(delta: float) -> void:
 	if smoke and _elapsed > 6.0:
 		var t := vehicle.telemetry()
 		# < 1 m/s: the heavy trucks inherit a slow brake-held creep from the reference.
-		var settled: bool = absf(t.speed) < 1.0 and t.airborne == 0
+		var settled: bool = smoke_drive or (absf(t.speed) < 1.0 and t.airborne == 0)
 		print("ridgeline: smoke %s frames=%d avg_fps=%.1f worst_ms=%.1f cells=%d built=%d retired=%d stale=%d missing=%d worst_attach_ms=%.2f p95_cost_ms=%.1f deferred=%d veg_cells=%d veg_batches=%d veg_instances=%d veg_missing=%d veg_worst_attach_ms=%.2f draws=%d vehicle_steps=%d vehicle_speed=%.3f airborne=%d" % [
 			"ok" if settled else "FAILED (vehicle did not settle)",
 			_frames, _frames / _elapsed, _worst_ms, live, ts.jobs_built,

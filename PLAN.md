@@ -97,8 +97,24 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
   (`scripts/game/ground_collider.gd`) keeps a 64 m, 2 m-spacing `HeightMapShape3D`
   under and ahead of the truck, filled by `TerrainField.height_grid` in C++
   (~0.6–1.1 ms per re-centre). Trunk/boulder colliders are still milestone 3.
+- **Game handling layer** (`Tune.handling*`, in `tune.json`): grip ×1.35 on every
+  surface, sliding/spinning tyres keep 85% of peak grip (the reference drops to
+  15–50%, which felt like ice on grass), damping ×1.8, anti-roll ×3.
+  `reference_tune()` neutralises it for the golden tests and `replay_runner.gd`
+  does the same for parity. Grass test at 40 km/h full lock: 0.42 → 0.58 g
+  (Ridgeback 90), similar gains on all four. Wheels are also drawn pressed into
+  soft ground by `sink` (the reference convention left them hovering by it).
+- **Timberwolf SS is a sports coupe** (`body.style: "coupe"`, `tire.tread: "road"`):
+  a lofted shell in `vehicle_mesh.cpp` (`coupe_body`) with raised front fenders and
+  round fender-top headlamps, wide rear haunches, a fastback greenhouse, side
+  mirrors, rear wing, full-width tail lamp, splitter, skirts and twin exhausts;
+  20" low-profile road tyres; no ladder frame, bumpers or 4x4 accessories; lowered
+  physics box (wheel radius 0.34 m, 0.14 m travel). ~53k triangles at near LOD.
+  1080p chase idle in the coupe: p95 18.1 ms, GPU p95 8.3 ms, ~308 draws
+  (`native-chase-idle-20260917-coupe.json`). `--drive` (with `--smoke`) floors it
+  with the diffs locked instead of braking, for screenshots in motion.
 - **Timberwolf is retuned as the supercar "Timberwolf SS"** (data only: 900 kW,
-  1800 N m, tall gears, `lowRangeRatio` 1, `tireGrip` 1.5, `tractionControl` 0.9).
+  1800 N m, tall gears, `lowRangeRatio` 1, `tireGrip` 1.15 (on top of the handling layer), `tractionControl` 0.9).
   `tireGrip` / `tractionControl` are optional per-vehicle perf fields (defaults keep
   the reference model bit-identical; golden tests and parity pass). Its golden
   drivetrain session pins the original reference perf. Headless run on a dry
