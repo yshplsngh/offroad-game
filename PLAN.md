@@ -336,14 +336,21 @@ near-vehicle obstacle set         ─► only the small collision radius gets co
       the parked truck away with the tires turning and jittering forever
       (inherited from the reference). Re-engage threshold must stay above the
       ~1-1.7 m/s the creep sustains, or a truck that has driven never parks.
+- [x] Automatic reverse (game layer): holding S near standstill shifts to R
+      and S becomes reverse throttle; W brakes, and from a reverse stop
+      shifts back to first. Q/E manual shifting untouched.
+- [x] Mouse look on the chase camera: captured mouse orbits/elevates, eases
+      back behind the truck when the mouse rests and the truck is moving;
+      pause releases the cursor.
 - [ ] Cockpit, bonnet, orbit, cinematic cameras
 - [ ] Trail objectives, waypoints, recovery points, free-roam map
 - [ ] Damage model, fuel, water fording depth
 - [ ] Save/load (start from `worldcore::IntegratedState`), settings, graphics presets
 
-**Controls:** `WASD` drive · `Space` handbrake · `Q/E` gears · `L` range ·
-`X` diff lock · `R` recover · `F` winch hook · `G` reel in · `C` camera ·
-`V` next vehicle · `P`/`Esc` pause · `/` help · `` ` `` stats
+**Controls:** `WASD` drive (hold `S` at a stop to reverse) · mouse look ·
+`Space` handbrake · `Q/E` gears · `L` range · `X` diff lock · `R` recover ·
+`F` winch hook · `G` reel in · `C` camera · `V` next vehicle ·
+`P`/`Esc` pause · `/` help · `` ` `` stats
 
 ---
 

@@ -17,7 +17,7 @@ func _ready() -> void:
 	stats = _label(Vector2(-560, 12), 13, Control.PRESET_TOP_RIGHT)
 	stats.visible = false
 	help = _label(Vector2(24, 24), 15, Control.PRESET_TOP_LEFT)
-	help.text = "W/S throttle-brake  A/D steer  Space handbrake\nQ/E gears  L range  X diff lock  R recover\nF winch hook  G reel in  C camera  ` stats  / help"
+	help.text = "W/S drive-brake (hold S at a stop to reverse)  A/D steer  Space handbrake\nQ/E gears  L range  X diff lock  R recover  mouse look around\nF winch hook  G reel in  C camera  ` stats  / help"
 	help.visible = false
 
 

@@ -51,6 +51,7 @@ var tune_data: Dictionary
 var paused := false
 var _hold := true         # auto-hold: parked until the first throttle
 var _hold_timer := 0.0
+var _reverse_timer := 0.0
 var _frames := 0
 var _elapsed := 0.0
 
@@ -118,6 +119,11 @@ func _ready() -> void:
 	chase.zoom = smoke_zoom
 	add_child(chase)
 	chase.snap()
+	# Mouse look in play: captured mouse orbits/elevates the chase camera.
+	# Pause (P/Esc) releases the cursor.
+	if not smoke and DisplayServer.get_name() != "headless":
+		chase.mouse_look = true
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 	if smoke and not smoke_chase:
 		smoke_camera = Camera3D.new()
@@ -292,6 +298,8 @@ func _on_action(name: String) -> void:
 		"pause":
 			paused = not paused
 			get_tree().paused = paused
+			if chase.mouse_look:
+				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if paused else Input.MOUSE_MODE_CAPTURED
 			hud.say("paused" if paused else "resumed")
 		"debug":
 			hud.stats.visible = not hud.stats.visible
@@ -314,6 +322,30 @@ func _physics_process(_delta: float) -> void:
 			vehicle.linear_velocity = Vector3(0, 5.0, 0)
 		return
 	input.poll()
+	# Automatic reverse (game layer): holding S near standstill shifts down to
+	# R and backs up, like every offroad game; W then brakes, and W from a
+	# reverse stop shifts back up to first. Q/E manual shifting is untouched -
+	# this only auto-shifts within ~walking pace of a stop.
+	var tel := vehicle.telemetry()
+	var gear := int(tel.gear)
+	var eff_throttle := input.throttle
+	var eff_brake := input.brake
+	if gear == -1:
+		eff_throttle = input.brake  # S backs up in R
+		eff_brake = input.throttle  # W brakes
+		_reverse_timer = 0.0
+		if input.throttle > 0.0 and absf(tel.forward_speed) < 0.4:
+			vehicle.shift_up()      # W from a reverse stop: R -> N (-> 1 below)
+			eff_throttle = 0.0
+			eff_brake = 1.0
+	elif gear == 0 and input.throttle > 0.0:
+		vehicle.shift_up()          # N with throttle: into first
+	elif input.brake > 0.0 and absf(tel.forward_speed) < 0.4:
+		_reverse_timer += get_physics_process_delta_time()
+		if _reverse_timer > 0.25:
+			vehicle.shift_down()    # one step per tick: 1 -> N -> R
+	else:
+		_reverse_timer = 0.0
 	# Auto-hold (game layer, the physics stays the exact port): with clutchCreep
 	# an automatic never stands still - at spawn the truck wandered off on its
 	# own with the tires turning and jittering forever at idle. Holding the
@@ -322,17 +354,17 @@ func _physics_process(_delta: float) -> void:
 	# re-engages after dawdling below walking pace - the threshold must sit
 	# above the ~1-1.7 m/s the idle creep sustains on its own, or a truck that
 	# has driven once never parks again.
-	if input.throttle > 0.0 or input.winch > 0.0:
+	if eff_throttle > 0.0 or input.winch > 0.0:
 		_hold = false
 		_hold_timer = 0.0
 	elif not _hold:
-		if absf(vehicle.telemetry().speed) < 2.0:
+		if absf(tel.speed) < 2.0:
 			_hold_timer += get_physics_process_delta_time()
 			if _hold_timer > 1.2:
 				_hold = true
 		else:
 			_hold_timer = 0.0
-	vehicle.set_input(input.throttle, maxf(input.brake, 1.0 if _hold else 0.0),
+	vehicle.set_input(eff_throttle, maxf(eff_brake, 1.0 if _hold else 0.0),
 			input.handbrake, input.steer, input.winch)
 
 

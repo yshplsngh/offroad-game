@@ -39,6 +39,7 @@ expects.
 
 ## Controls
 
-`WASD` drive · `Space` handbrake · `Q`/`E` gears · `L` low/high range ·
+`WASD` drive (hold `S` at a stop to reverse) · mouse look ·
+`Space` handbrake · `Q`/`E` gears · `L` low/high range ·
 `X` diff lock · `R` recover · `F` winch hook · `G` reel in · `C` camera ·
 `V` next vehicle · `P` pause · `/` help · `` ` `` stats
