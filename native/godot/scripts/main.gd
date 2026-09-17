@@ -49,6 +49,8 @@ var overlay: Label
 var vehicles_data: Dictionary
 var tune_data: Dictionary
 var paused := false
+var _hold := true         # auto-hold: parked until the first throttle
+var _hold_timer := 0.0
 var _frames := 0
 var _elapsed := 0.0
 
@@ -201,6 +203,8 @@ func _spawn_vehicle(index: int, x: float, z: float, heading: float) -> void:
 		patch.name = "GroundPatch"
 		add_child(patch)
 	patch.configure(field, vehicle)
+	_hold = true  # a fresh truck spawns parked
+	_hold_timer = 0.0
 	visual = VehicleVisual.new()
 	visual.name = "VehicleVisual"
 	add_child(visual)
@@ -310,7 +314,26 @@ func _physics_process(_delta: float) -> void:
 			vehicle.linear_velocity = Vector3(0, 5.0, 0)
 		return
 	input.poll()
-	vehicle.set_input(input.throttle, input.brake, input.handbrake, input.steer, input.winch)
+	# Auto-hold (game layer, the physics stays the exact port): with clutchCreep
+	# an automatic never stands still - at spawn the truck wandered off on its
+	# own with the tires turning and jittering forever at idle. Holding the
+	# brake makes the model clamp wheel omega to zero, so the tires actually
+	# stop. Throttle (or winching) releases it instantly; off throttle it
+	# re-engages after dawdling below walking pace - the threshold must sit
+	# above the ~1-1.7 m/s the idle creep sustains on its own, or a truck that
+	# has driven once never parks again.
+	if input.throttle > 0.0 or input.winch > 0.0:
+		_hold = false
+		_hold_timer = 0.0
+	elif not _hold:
+		if absf(vehicle.telemetry().speed) < 2.0:
+			_hold_timer += get_physics_process_delta_time()
+			if _hold_timer > 1.2:
+				_hold = true
+		else:
+			_hold_timer = 0.0
+	vehicle.set_input(input.throttle, maxf(input.brake, 1.0 if _hold else 0.0),
+			input.handbrake, input.steer, input.winch)
 
 
 func _process(delta: float) -> void:

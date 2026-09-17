@@ -331,6 +331,11 @@ near-vehicle obstacle set         ─► only the small collision radius gets co
 
 - [x] Chase and close cameras; HUD speed/gear/range/lock/rpm/surface/winch/stuck
 - [x] Keyboard + gamepad bindings (same as the reference)
+- [x] Auto-hold (game layer): brake held for the model off-throttle near
+      standstill, released on throttle/winch - without it clutchCreep drives
+      the parked truck away with the tires turning and jittering forever
+      (inherited from the reference). Re-engage threshold must stay above the
+      ~1-1.7 m/s the creep sustains, or a truck that has driven never parks.
 - [ ] Cockpit, bonnet, orbit, cinematic cameras
 - [ ] Trail objectives, waypoints, recovery points, free-roam map
 - [ ] Damage model, fuel, water fording depth
