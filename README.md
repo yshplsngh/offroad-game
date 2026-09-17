@@ -32,6 +32,11 @@ godot --path native/godot
 packaging/fedora/build-rpm.sh
 ```
 
+On macOS, `tools/setup-macos.sh` installs the toolchain (Homebrew: cmake,
+ninja, the Godot 4.7 cask), checks out godot-cpp and runs the builds and tests
+above, producing the universal `libworldcore.macos.*.dylib` the project
+expects.
+
 ## Controls
 
 `WASD` drive · `Space` handbrake · `Q`/`E` gears · `L` low/high range ·
