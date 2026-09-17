@@ -5,6 +5,7 @@ extends CanvasLayer
 
 signal sensitivity_changed(value: float)
 signal resume_pressed
+signal menu_toggled
 signal vehicle_selected(index: int)
 signal camera_selected(mode: String)
 signal recover_pressed
@@ -17,6 +18,7 @@ var alert: Label
 var stats: Label
 var help: Label
 var pause_menu: PanelContainer
+var menu_button: Button
 var _sens_slider: HSlider
 var _sens_value: Label
 var _vehicle_pick: OptionButton
@@ -31,17 +33,44 @@ func _ready() -> void:
 	alert = _label(Vector2(0, 64), 20, Control.PRESET_CENTER_TOP)
 	stats = _label(Vector2(-560, 12), 13, Control.PRESET_TOP_RIGHT)
 	stats.visible = false
-	help = _label(Vector2(24, 24), 15, Control.PRESET_TOP_LEFT)
+	help = _label(Vector2(64, 20), 15, Control.PRESET_TOP_LEFT)  # right of the hamburger
 	help.text = "W/S drive-brake (hold S at a stop to reverse)  A/D steer  Space handbrake\nQ/E gears  L range  X diff lock  R recover  mouse look around\nF winch hook  G reel in  C camera  ` stats  / help"
 	help.visible = false
+	_build_menu_button()
 	_build_pause_menu()
+
+
+func _build_menu_button() -> void:
+	# Hamburger toggle, top-left. Drawn with rects - the default font has no
+	# reliable three-lines glyph. Clickable whenever the cursor is visible.
+	menu_button = Button.new()
+	menu_button.process_mode = Node.PROCESS_MODE_ALWAYS
+	menu_button.custom_minimum_size = Vector2(40, 34)
+	menu_button.focus_mode = Control.FOCUS_NONE
+	menu_button.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	menu_button.position = Vector2(12, 12)
+	menu_button.pressed.connect(func() -> void: menu_toggled.emit())
+	var lines := VBoxContainer.new()
+	lines.set_anchors_preset(Control.PRESET_CENTER)
+	lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lines.add_theme_constant_override("separation", 4)
+	for i in 3:
+		var bar := ColorRect.new()
+		bar.color = Color(0.92, 0.92, 0.92)
+		bar.custom_minimum_size = Vector2(18, 2)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lines.add_child(bar)
+	menu_button.add_child(lines)
+	add_child(menu_button)
 
 
 func _build_pause_menu() -> void:
 	# Runs while the tree is paused, so it (and its children) must be ALWAYS.
 	pause_menu = PanelContainer.new()
 	pause_menu.process_mode = Node.PROCESS_MODE_ALWAYS
-	pause_menu.set_anchors_preset(Control.PRESET_CENTER)
+	# Docked on the left under the hamburger, clear of the truck in the centre.
+	pause_menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	pause_menu.position = Vector2(12, 56)
 	pause_menu.visible = false
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(380, 0)

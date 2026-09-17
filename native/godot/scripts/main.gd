@@ -139,6 +139,7 @@ func _ready() -> void:
 	hud.set_vehicles(names)
 	hud.sensitivity_changed.connect(_on_sensitivity_changed)
 	hud.resume_pressed.connect(func() -> void: _set_paused(false))
+	hud.menu_toggled.connect(func() -> void: _set_paused(not paused))
 	hud.camera_selected.connect(func(m: String) -> void: chase.mode = m)
 	hud.vehicle_selected.connect(_on_menu_vehicle)
 	hud.recover_pressed.connect(func() -> void:
