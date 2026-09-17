@@ -24,6 +24,7 @@ var vehicle: OffroadVehicle
 var _emitters: Array[GPUParticles3D] = []
 var _mats: Array[ParticleProcessMaterial] = []
 var _hubs: Array[Vector3] = []
+var _radius := 0.4
 
 
 func setup(p_vehicle: OffroadVehicle, spec: Dictionary) -> void:
@@ -36,6 +37,7 @@ func setup(p_vehicle: OffroadVehicle, spec: Dictionary) -> void:
 	var track: float = spec.axle.track
 	var wheelbase: float = spec.frame.wheelbase
 	var r: float = spec.physics.wheelRadius
+	_radius = r
 	for i in 4:  # FL FR RL RR; front axle at +z (PLAN.md coordinates)
 		var side := -1.0 if i % 2 == 0 else 1.0
 		var fz := 1.0 if i < 2 else -1.0
@@ -81,7 +83,11 @@ func _process(_delta: float) -> void:
 		var p := _emitters[i]
 		p.global_position = xf * _hubs[i]
 		var surf := int(w.surface)
-		var working: bool = float(w.slip) > 0.35 or (speed > 4.0 and surf in LOOSE)
+		# Slip alone is not enough: locked brakes at a standstill read slip ~1
+		# while nothing moves. Debris needs real relative motion - a spinning
+		# wheel (burnout) or a body actually travelling (skid).
+		var kick := maxf(absf(float(w.omega)) * _radius, speed)
+		var working: bool = (float(w.slip) > 0.35 and kick > 1.5) or (speed > 4.0 and surf in LOOSE)
 		var on: bool = bool(w.contact) and working
 		p.emitting = on
 		if on:

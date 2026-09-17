@@ -72,17 +72,26 @@ Sources: [SnowRunner terrain physics](https://www.mudrunnermods.com/terrain-phys
 Gate: `--smoke` and `--smoke --roll` pass; replay parity untouched (audio/FX
 never touch physics inputs).
 
-### R2 — the world reads true
-- Terrain shading pass: fix the washed-out look + grey spawn patch (open
-  issue): tonemap/ambient rebalance, wetness darkening like SnowRunner's
-  viscosity telegraphing (darker = wetter = riskier — data already in the
-  colour mask).
-- Native sky shader with a slow time-of-day drift + headlight relevance at
-  dusk (milestone 5 item); environment updates never in the frame loop.
-- Tire/rolling audio layer: surface-keyed noise (gravel crunch, mud squelch,
-  wet hiss) from the same generator, per-surface filters.
-- Wheel ruts *visual only*: decal ribbon behind wheels in soft ground,
-  fixed-size ring buffer, no collision feedback (physics stays frozen).
+### R2 — the world reads true ✅ landed
+- ✅ Terrain shading pass: fog density 0.0011→0.0007 (the grey midground wash),
+  contrast 1.06 / saturation 1.15 grading, wetness darkening strengthened
+  (0.42→0.55 + glossier) for SnowRunner-style viscosity telegraphing.
+  Before/after screenshots verified. The "grey patch near spawn" turned out to
+  be two things: rock/scree reading flat under the old wash, and an R1 WheelFX
+  bug (locked brakes report slip≈1 at a standstill, so parked wheels emitted
+  grass debris) — fixed by requiring real relative motion (`kick > 1.5 m/s`).
+- ✅ Time-of-day (`SkyCycle`): 13-minute day; the shadow-free sun moves every
+  frame (cheap), sky material/fog/ambient push only every 5 s so radiance
+  regeneration stays out of the frame loop. Dawn/dusk palettes, dim blue night.
+  Headlights come on automatically past dusk (`night > 0.45`); menu has a
+  time-of-day slider.
+- ✅ Tire/rolling audio (`TireAudio`): surface-keyed filtered noise — gravel
+  crackle (pop bursts), mud squelch (heavy lowpass), water hiss, snow crunch —
+  level from speed plus a skid layer, sharing the menu volume.
+- ✅ Wheel ruts (`RutTrail`): visual-only MultiMesh ring of 1024 terrain-
+  conformed dark quads dropped every 0.55 m on dirt/loam/mud/snow. One draw
+  call, instances written only on drop, oldest overwritten; the analytic
+  terrain never deforms.
 
 ### R3 — consequences (gameplay systems, PLAN backlog)
 - Water fording depth: engine stall + hydrolock risk past intake height,

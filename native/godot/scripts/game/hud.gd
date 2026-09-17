@@ -5,6 +5,7 @@ extends CanvasLayer
 
 signal sensitivity_changed(value: float)
 signal volume_changed(value: float)
+signal time_changed(hours: float)
 signal lights_toggled(on: bool)
 signal resume_pressed
 signal menu_toggled
@@ -27,6 +28,8 @@ var _vehicle_pick: OptionButton
 var _camera_pick: OptionButton
 var _vol_slider: HSlider
 var _vol_value: Label
+var _time_slider: HSlider
+var _time_value: Label
 var _lights_check: CheckBox
 var _stats_check: CheckBox
 var _help_check: CheckBox
@@ -133,6 +136,23 @@ func _build_pause_menu() -> void:
 	_vol_value.text = "70%"
 	vol_row.add_child(_vol_value)
 
+	var time_row := _menu_row(box, "time of day")
+	_time_slider = HSlider.new()
+	_time_slider.min_value = 0.0
+	_time_slider.max_value = 24.0
+	_time_slider.step = 0.25
+	_time_slider.value = 9.0
+	_time_slider.custom_minimum_size = Vector2(120, 0)
+	_time_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_time_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_time_slider.value_changed.connect(func(h: float) -> void:
+		_time_value.text = _clock(h)
+		time_changed.emit(h))
+	time_row.add_child(_time_slider)
+	_time_value = Label.new()
+	_time_value.text = "09:00"
+	time_row.add_child(_time_value)
+
 	_lights_check = CheckBox.new()
 	_lights_check.text = "headlights  (H)"
 	_lights_check.toggled.connect(func(on: bool) -> void: lights_toggled.emit(on))
@@ -184,10 +204,16 @@ func set_volume(v: float) -> void:
 	_vol_value.text = "%d%%" % roundi(v * 100.0)
 
 
+static func _clock(h: float) -> String:
+	return "%02d:%02d" % [int(h) % 24, roundi(fmod(h, 1.0) * 60.0)]
+
+
 ## Reflect current game state when the menu opens, without re-emitting signals.
-func sync_menu(vehicle_index: int, camera_mode: String, lights_on: bool) -> void:
+func sync_menu(vehicle_index: int, camera_mode: String, lights_on: bool, hours: float) -> void:
 	_vehicle_pick.select(vehicle_index)
 	_camera_pick.select(1 if camera_mode == "close" else 0)
+	_time_slider.set_value_no_signal(hours)
+	_time_value.text = _clock(hours)
 	_lights_check.set_pressed_no_signal(lights_on)
 	_stats_check.set_pressed_no_signal(stats.visible)
 	_help_check.set_pressed_no_signal(help.visible)

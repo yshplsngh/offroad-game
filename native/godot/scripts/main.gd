@@ -43,7 +43,10 @@ var vehicle: OffroadVehicle
 var patch: GroundPatch
 var visual: VehicleVisual
 var engine_audio: EngineAudio
+var tire_audio: TireAudio
 var wheel_fx: WheelFX
+var ruts: RutTrail
+var sky: SkyCycle
 var lights_on := false
 var input: VehicleInput
 var hud: GameHud
@@ -132,17 +135,21 @@ func _ready() -> void:
 	if not smoke and DisplayServer.get_name() != "headless":
 		chase.mouse_look = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	# Procedural engine note (REALISM.md R1); no audio device headless.
+	# Procedural engine note (R1) + surface rolling noise (R2); no device headless.
 	if DisplayServer.get_name() != "headless":
 		engine_audio = EngineAudio.new()
 		engine_audio.name = "EngineAudio"
 		add_child(engine_audio)
+		tire_audio = TireAudio.new()
+		tire_audio.name = "TireAudio"
+		add_child(tire_audio)
 
 	var cf := ConfigFile.new()
 	if cf.load(SETTINGS_PATH) == OK:
 		chase.sensitivity = clampf(float(cf.get_value("input", "mouse_sensitivity", 1.0)), 0.2, 3.0)
 		if engine_audio:
 			engine_audio.volume = clampf(float(cf.get_value("audio", "engine_volume", 0.7)), 0.0, 1.0)
+			tire_audio.volume = engine_audio.volume * 0.9
 	hud.set_sensitivity(chase.sensitivity)
 	hud.set_volume(engine_audio.volume if engine_audio else 0.7)
 	var names := PackedStringArray()
@@ -158,7 +165,9 @@ func _ready() -> void:
 	hud.volume_changed.connect(func(v: float) -> void:
 		if engine_audio:
 			engine_audio.volume = v
+			tire_audio.volume = v * 0.9
 		_save_setting("audio", "engine_volume", v))
+	hud.time_changed.connect(func(h: float) -> void: sky.set_time(h / 24.0))
 	hud.recover_pressed.connect(func() -> void:
 		hud.say("recovered - resume to see it" if vehicle.flip() else "recovery cooling down", 1.5))
 	hud.quit_pressed.connect(func() -> void: get_tree().quit())
@@ -263,6 +272,12 @@ func _spawn_vehicle(index: int, x: float, z: float, heading: float) -> void:
 		wheel_fx.name = "WheelFX"
 		add_child(wheel_fx)
 	wheel_fx.setup(vehicle, spec)
+	# Visual-only wheel ruts in soft ground (REALISM.md R2).
+	if ruts == null:
+		ruts = RutTrail.new()
+		ruts.name = "RutTrail"
+		add_child(ruts)
+	ruts.setup(vehicle, spec, field)
 	if chase:
 		chase.target = vehicle
 
@@ -281,7 +296,7 @@ func _fail(msg: String) -> void:
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation = Vector3(deg_to_rad(-38), deg_to_rad(35), 0)
-	sun.light_energy = 1.25
+	sun.light_energy = 1.35
 	sun.shadow_enabled = false  # no real-time shadows in the default game
 	add_child(sun)
 
@@ -289,23 +304,33 @@ func _build_environment() -> void:
 	sky_mat.sky_top_color = Color(0.32, 0.5, 0.78)
 	sky_mat.sky_horizon_color = Color(0.72, 0.78, 0.84)
 	sky_mat.ground_horizon_color = Color(0.5, 0.52, 0.5)
-	var sky := Sky.new()
-	sky.sky_material = sky_mat
-	sky.process_mode = Sky.PROCESS_MODE_QUALITY  # sky lighting updates only when the sky changes
+	var sky_res := Sky.new()
+	sky_res.sky_material = sky_mat
+	sky_res.process_mode = Sky.PROCESS_MODE_QUALITY  # sky lighting updates only when the sky changes
 
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
-	env.sky = sky
+	env.sky = sky_res
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.68, 0.74, 0.8)
-	env.fog_density = 0.0011
+	# R2 shading pass: the old 0.0011 density greyed the whole midground out.
+	env.fog_density = 0.0007
 	env.fog_sky_affect = 0.3
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.06
+	env.adjustment_saturation = 1.15
 
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
+
+	# Time of day (REALISM.md R2): sun per frame, sky pushed low-frequency.
+	sky = SkyCycle.new()
+	sky.name = "SkyCycle"
+	sky.setup(sun, sky_mat, env)
+	add_child(sky)
 
 
 func _build_ui() -> void:
@@ -377,7 +402,8 @@ func _set_paused(p: bool) -> void:
 	if chase and chase.mouse_look:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if p else Input.MOUSE_MODE_CAPTURED
 	if p:
-		hud.sync_menu(vehicle_index, chase.mode, lights_on)  # menu always opens showing reality
+		# The menu always opens showing reality.
+		hud.sync_menu(vehicle_index, chase.mode, lights_on, sky.hours() if sky else 9.0)
 	hud.pause_menu.visible = p
 	hud.say("paused" if p else "resumed")
 
@@ -496,14 +522,17 @@ func _process(delta: float) -> void:
 			live, missing, ts.queued, ts.jobs_built, ts.retired, ts.cancelled + ts.dropped_stale,
 			ts.rolling_p95_ms, ts.attach_ms, vs.live_cells, vs.live_batches, vs.live_instances,
 			ps.refills, ps.worst_refill_ms, s.biome]
-	# Realism drive (REALISM.md R1): lights answer the pedals, the body carries
-	# the mud it drove through, the engine answers rpm and throttle.
+	# Realism drive (REALISM.md R1+R2): lights answer the pedals (and the
+	# night), the body carries the mud it drove through, the engine answers
+	# rpm/throttle, the tires answer the surface.
 	var tel := vehicle.telemetry()
-	visual.set_lights(lights_on, input.brake > 0.0 or _hold, int(tel.gear) == -1,
-			lights_on and bool(tel.low_range))
+	var head := lights_on or (sky != null and sky.night > 0.45)
+	visual.set_lights(head, input.brake > 0.0 or _hold, int(tel.gear) == -1,
+			head and bool(tel.low_range))
 	visual.update_dirt(float(tel.mud), int(tel.surface), delta)
 	if engine_audio:
 		engine_audio.update(float(tel.rpm), input.throttle, delta)
+		tire_audio.update(float(tel.speed), float(tel.slip), int(tel.surface), delta)
 	hud.update_hud(tel, delta, stats_text)
 
 	if smoke and _elapsed > (8.0 if roll_test else 6.0):

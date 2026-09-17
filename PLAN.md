@@ -98,7 +98,11 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
 - `Performance.TIME_PROCESS` includes the vsync wait (reads 16–70 ms while the
   GPU does ~4 ms); the streamer's gate uses measured work instead. Do not
   reintroduce it into any frame-cost budget.
-- Terrain shading reads washed out, with an unexplained grey patch near spawn.
+- ~~Terrain shading reads washed out, with an unexplained grey patch near
+  spawn.~~ R2 shading pass (fog 0.0007, contrast/saturation grading, stronger
+  wetness darkening) fixed the wash; the "patch" was rock/scree reading flat
+  under it plus a WheelFX mis-emission at locked brakes (see REALISM.md R2).
+  Verify on the Fedora reference iGPU before closing for good.
 - Vegetation draw calls (~360) are dominated by far cells with several variants
   each; if a capture ever shows CPU render cost, merge far-LOD variants per cell.
 - Grass detail texture: procedural tufts + normal map baked by `worldcore_bake`
@@ -332,7 +336,10 @@ near-vehicle obstacle set         ─► only the small collision radius gets co
 Realism roadmap: see [REALISM.md](REALISM.md) (research, tranches R1-R4,
 budgets). R1 landed: pedal-answering lights (`H` + menu), mud/dirt
 accumulation on the body, procedural engine audio (menu volume, persisted),
-speed-driven FOV, per-wheel dust/mud/spray particles.
+speed-driven FOV, per-wheel dust/mud/spray particles. R2 landed: terrain
+shading pass (fog/grading/wetness), `SkyCycle` time-of-day with auto
+headlights and a menu clock, `TireAudio` surface noise, `RutTrail`
+visual-only wheel ruts.
 
 - [x] Chase and close cameras; HUD speed/gear/range/lock/rpm/surface/winch/stuck
 - [x] Keyboard + gamepad bindings (same as the reference)
