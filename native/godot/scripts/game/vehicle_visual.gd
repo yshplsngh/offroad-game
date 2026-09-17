@@ -220,8 +220,11 @@ func _process(_delta: float) -> void:
 	for a in 2:
 		var left := vehicle.wheel(a * 2)
 		var right := vehicle.wheel(a * 2 + 1)
-		var cl := clampf(left.travel, -travel, travel)
-		var cr := clampf(right.travel, -travel, travel)
+		# The physics counts sink as extra compression (the reference's convention),
+		# which leaves the tyre sitting `sink` above soft ground. Draw it pressed in
+		# by `sink` instead, so wheels sit in grass and mud rather than hover.
+		var cl := clampf(left.travel, -travel, travel) - 2.0 * float(left.sink)
+		var cr := clampf(right.travel, -travel, travel) - 2.0 * float(right.sink)
 		_axles[a].position.y = axle_y + (cl + cr) * 0.5
 		_axles[a].rotation.z = asin(clampf((cr - cl) / track, -0.6, 0.6))
 	for i in 4:

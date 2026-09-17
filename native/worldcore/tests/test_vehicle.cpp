@@ -59,12 +59,13 @@ int main(int argc, char** argv) {
     const json::Value tuneJson = json::load(data + "/tune.json");
     const json::Value worldJson = json::load(data + "/world.json");
     const json::Value vehiclesJson = json::load(data + "/vehicles.json");
-    const Tune tune;
+    const Tune tune = reference_tune();
+    const Tune defaults;
 
     /* ---- data drift: C++ defaults must equal the data tables ---- */
     size_t tuneFields = 0;
 #define X(name) \
-    check_near(tune.name, tuneJson[#name].n, "tune." #name, 0, 1e-12); \
+    check_near(defaults.name, tuneJson[#name].n, "tune." #name, 0, 1e-12); \
     tuneFields++;
     WORLDCORE_TUNE_FIELDS(X)
 #undef X
@@ -113,8 +114,10 @@ int main(int argc, char** argv) {
         check_eq(spec != nullptr, "vehicle " + session["vehicle"].s + " in vehicles.json");
         if (!spec) continue;
 
-        const VehiclePerf perf = perf_from(*spec);
-        const double r = (*spec)["physics"]["wheelRadius"].n;
+        // A session can pin the reference perf when the game has since retuned that vehicle.
+        const json::Value& source = session.has("reference") ? session["reference"] : *spec;
+        const VehiclePerf perf = perf_from(source);
+        const double r = source["physics"]["wheelRadius"].n;
         const double wheelInertia = tune.wheelInertiaFactor * perf.mass * tune.wheelMassFraction * r * r;
         check_near(wheelInertia, session["wheelInertia"].n, "wheelInertia");
 

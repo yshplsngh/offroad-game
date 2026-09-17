@@ -62,5 +62,9 @@
   "flipCooldown": 4,
   "flipLift": 0.45,
   "stuckSpeed": 0.7,
-  "stuckRate": 0.55
+  "stuckRate": 0.55,
+  "handlingGrip": 1.35,
+  "handlingSlideGrip": 0.85,
+  "handlingDamping": 1.8,
+  "handlingAntiRoll": 3
 }

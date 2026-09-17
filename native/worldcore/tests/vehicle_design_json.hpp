@@ -29,11 +29,12 @@ inline worldcore::VehicleDesign design_from_json(const json::Value& v) {
     const auto& t = v["tire"];
     d.tire = {num(t, "diameter", 0.889), num(t, "width", 0.318), static_cast<int>(num(t, "rimInch", 17)),
               static_cast<int>(num(t, "spokes", 6)), t.has("rimColor") ? design_color(t["rimColor"], 0x2b2e33) : 0x2b2e33,
-              flag(t, "beadlock", true)};
+              flag(t, "beadlock", true), t.has("tread") && t["tread"].s == "road"};
     const auto& su = v["suspension"];
     d.suspension = {num(su, "travel", 0.26), su.has("shockColor") ? design_color(su["shockColor"], 0xc23a2a) : 0xc23a2a};
     const auto& b = v["body"];
     d.body.pickup = b.has("style") && b["style"].s == "pickup";
+    d.body.coupe = b.has("style") && b["style"].s == "coupe";
     d.body.doors = static_cast<int>(num(b, "doors", 2));
     d.body.width = num(b, "width", 1.8);
     d.body.sideHeight = num(b, "sideHeight", 0.6);

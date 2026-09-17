@@ -13,6 +13,7 @@
 #                 instead of falling through the world
 #   --camera=chase     with --smoke: keep the chase camera on the truck instead
 #   --orbit=DEG        with --smoke: chase camera orbited around the truck (90 = side, 180 = front)
+#   --drive            with --smoke: floor it and turn (diff locked) instead of braking
 #   --zoom=K           with --smoke: chase camera distance multiplier (0.4 = close-up)
 #   --stream-workers=N terrain build threads (default: cores - 2, max 4)
 #   --screenshot=PATH  with --smoke: save the last rendered frame as PNG
@@ -30,6 +31,8 @@ var _rolled := false
 var smoke_chase := false
 var smoke_orbit := 0.0
 var smoke_zoom := 1.0
+var smoke_drive := false
+var _drive_ticks := 0
 var stream_workers := 0
 var screenshot := ""
 var capture_path := ""
@@ -80,6 +83,8 @@ func _ready() -> void:
 			smoke = true
 		elif arg == "--roll":
 			roll_test = true
+		elif arg == "--drive":
+			smoke_drive = true
 		elif arg.begins_with("--stream-workers="):
 			stream_workers = int(arg.get_slice("=", 1))
 		elif arg == "--camera=chase":
@@ -434,14 +439,21 @@ func _physics_process(_delta: float) -> void:
 		return
 	if smoke:
 		# Foot on the brake: in low first the truck creeps at idle, like the reference.
-		vehicle.set_input(0, 1, 0, 0, 0)
-		if roll_test and not _rolled and _elapsed > 1.0:
-			# Half-roll with hangtime so the truck comes down on its roof/side:
-			# only the chassis can catch it there, and without the ground patch
-			# it fell through the world.
-			_rolled = true
-			vehicle.angular_velocity = Vector3(0, 0, 4.0)
-			vehicle.linear_velocity = Vector3(0, 5.0, 0)
+		if smoke_drive:
+			_drive_ticks += 1
+			if _drive_ticks == 1:
+				vehicle.cycle_lock()
+				vehicle.cycle_lock()
+			vehicle.set_input(1, 0, 0, 0.0 if _drive_ticks < 120 else 0.7, 0)
+		else:
+			vehicle.set_input(0, 1, 0, 0, 0)
+			if roll_test and not _rolled and _elapsed > 1.0:
+				# Half-roll with hangtime so the truck comes down on its roof/side:
+				# only the chassis can catch it there, and without the ground patch
+				# it fell through the world.
+				_rolled = true
+				vehicle.angular_velocity = Vector3(0, 0, 4.0)
+				vehicle.linear_velocity = Vector3(0, 5.0, 0)
 		return
 	input.poll()
 	# Automatic reverse (game layer): holding S near standstill shifts down to
@@ -539,10 +551,11 @@ func _process(delta: float) -> void:
 		var t := vehicle.telemetry()
 		# < 1 m/s: the heavy trucks inherit a slow brake-held creep from the reference.
 		# Rolled, the wheels point anywhere (airborne stays set) - resting on the
-		# ground patch near the analytic surface is what passes.
+		# ground patch near the analytic surface is what passes. --drive is a
+		# screenshots-in-motion run: it never settles by design.
 		var p := vehicle.global_position
 		var above: bool = p.y > field.height(p.x, p.z) - 1.0
-		var settled: bool = absf(t.speed) < 1.0 and (t.airborne == 0 or roll_test) and above
+		var settled: bool = smoke_drive or (absf(t.speed) < 1.0 and (t.airborne == 0 or roll_test) and above)
 		var ps := patch.stats()
 		print("ridgeline: smoke %s frames=%d avg_fps=%.1f worst_ms=%.1f cells=%d built=%d retired=%d stale=%d missing=%d worst_attach_ms=%.2f p95_cost_ms=%.1f deferred=%d veg_cells=%d veg_batches=%d veg_instances=%d veg_missing=%d veg_worst_attach_ms=%.2f draws=%d vehicle_steps=%d vehicle_speed=%.3f airborne=%d pos_y=%.2f ground=%.2f patch_refills=%d patch_worst_ms=%.2f" % [
 			"ok" if settled else "FAILED (vehicle did not settle)",

@@ -108,6 +108,13 @@ struct Tune {
     // stuckness
     double stuckSpeed = 0.7;
     double stuckRate = 0.55;
+    // Game handling layer on top of the browser reference. Neutral values
+    // (grip 1, slideGrip 0, damping 1, antiRoll 1) reproduce the reference
+    // exactly; golden tests and parity replays pin them via reference_tune().
+    double handlingGrip = 1.35;      // multiplies every surface's friction
+    double handlingSlideGrip = 0.85; // fraction of peak grip a sliding or spinning tyre keeps
+    double handlingDamping = 1.8;    // multiplies bump and rebound damping
+    double handlingAntiRoll = 3.0;   // multiplies both anti-roll bars
 };
 
 /// X-macro over every Tune field, for loaders and the data-drift test.
@@ -124,7 +131,17 @@ struct Tune {
     X(handbrakeFraction) X(lockerStrength) X(openDiffPreload) X(maxSteerAngle)                \
     X(steerSpeedFalloff) X(steerMinFraction) X(steerRate) X(steerReturnRate) X(ackermann)     \
     X(winchForce) X(winchSpeed) X(winchRange) X(winchStiffness) X(flipCooldown) X(flipLift)   \
-    X(stuckSpeed) X(stuckRate)
+    X(stuckSpeed) X(stuckRate) X(handlingGrip) X(handlingSlideGrip) X(handlingDamping)            \
+    X(handlingAntiRoll)
+
+/// The browser reference's tuning: `t` with the game handling layer neutral.
+inline Tune reference_tune(Tune t = Tune{}) {
+    t.handlingGrip = 1.0;
+    t.handlingSlideGrip = 0.0;
+    t.handlingDamping = 1.0;
+    t.handlingAntiRoll = 1.0;
+    return t;
+}
 
 /// spec.perf from catalog.js - what the drivetrain reads.
 struct VehiclePerf {
@@ -137,6 +154,9 @@ struct VehiclePerf {
     int forwardGears = 5;
     double finalDrive = 4.56;
     double brakeTorque = 3600;
+    // Road-car options (not in the browser reference; the defaults leave the model bit-identical).
+    double tireGrip = 1;          // multiplier on surface friction: performance tyres
+    double tractionControl = 0;   // cap wheel drive torque at this fraction of tyre grip; 0 = off
 };
 
 }  // namespace worldcore

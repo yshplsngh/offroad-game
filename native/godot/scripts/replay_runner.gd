@@ -45,7 +45,10 @@ func _ready() -> void:
 	vehicle = OffroadVehicle.new()
 	vehicle.name = "Vehicle"
 	add_child(vehicle)
-	if not vehicle.configure(spec, GameData.load_json("tune"), field):
+	# Parity is against the browser reference: the game handling layer stays neutral.
+	var tune := GameData.load_json("tune")
+	tune.merge({"handlingGrip": 1.0, "handlingSlideGrip": 0.0, "handlingDamping": 1.0, "handlingAntiRoll": 1.0}, true)
+	if not vehicle.configure(spec, tune, field):
 		_quit(2, "vehicle configure failed")
 		return
 	vehicle.spawn(spawn.x, spawn.z, float(replay.heading))

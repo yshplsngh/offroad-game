@@ -61,8 +61,8 @@ VehicleModel::VehicleModel(const VehicleSpec& spec, const Tune& tune, const Fiel
     sagU_ = std::max(0.01, tune.staticSag * totalTravel);
     springK_ = staticLoad_ / sagU_;
     const double critical = 2 * std::sqrt(springK_ * (mass_ / 4));
-    dampBump_ = critical * tune.dampBump;
-    dampRebound_ = critical * tune.dampRebound;
+    dampBump_ = critical * tune.dampBump * tune.handlingDamping;
+    dampRebound_ = critical * tune.dampRebound * tune.handlingDamping;
     maxSpring_ = staticLoad_ * tune.maxSpringForceG;
     rayLen_ = totalTravel + tireR_ + 0.6;
     bumpStopU_ = tune.bumpStopStart * totalTravel;
@@ -201,7 +201,7 @@ void VehicleModel::solve_suspension(double dt) {
         w.normal = hit.n;
     }
 
-    const std::array<std::array<double, 3>, 2> bars{{{0, 1, tune_.antiRollFront}, {2, 3, tune_.antiRollRear}}};
+    const std::array<std::array<double, 3>, 2> bars{{{0, 1, tune_.antiRollFront * tune_.handlingAntiRoll}, {2, 3, tune_.antiRollRear * tune_.handlingAntiRoll}}};
     for (const auto& bar : bars) {
         Wheel& wa = wheels_[static_cast<size_t>(bar[0])];
         Wheel& wb = wheels_[static_cast<size_t>(bar[1])];
@@ -244,7 +244,7 @@ double VehicleModel::solve_tires(double dt) {
             const double wheelSpeed = w.omega * tireR_;
 
             const SurfaceInfo& surf = surface_info(w.surface);
-            const double mu = peak_friction(surf, w.wetness, w.load, staticLoad_, tune_);
+            const double mu = peak_friction(surf, w.wetness, w.load, staticLoad_, tune_) * spec_.perf.tireGrip;
             const TireResult tire = tire_force(w.load, mu, vLong, vLat, wheelSpeed, tune_);
 
             w.lng = tire.fx;
@@ -349,6 +349,22 @@ const std::vector<AppliedForce>& VehicleModel::compute_forces(double dt, const B
     solve_suspension(dt);
 
     driveTorque_ = drivetrain_.update(dt, input_.throttle, omega_);
+    if (spec_.perf.tractionControl > 0) {
+        // Traction control: cap each wheel's drive torque at a fraction of what
+        // its tyre can transmit this step. Beyond the tyre's peak a wheel runs
+        // away within one 60 Hz step and loses nearly all force, which no
+        // throttle-side controller can catch in time.
+        for (const Wheel& w : wheels_) {
+            if (!w.contact || w.load <= 0) continue;
+            const double mu = peak_friction(surface_info(w.surface), w.wetness, w.load, staticLoad_, tune_) *
+                              spec_.perf.tireGrip;
+            double limit = spec_.perf.tractionControl * mu * w.load * tireR_;
+            double& t = driveTorque_[static_cast<size_t>(w.index)];
+            // Already past the peak in the driven direction: back off so the wheel falls back into grip.
+            if (w.slipRatio * t > 0 && std::fabs(w.slipRatio) > tune_.peakSlipRatio * 2) limit *= 0.4;
+            t = clamp(t, -limit, limit);
+        }
+    }
     brakes_ = drivetrain_.brake_torques(input_.brake, input_.handbrake);
 
     bogged_ = solve_tires(dt);

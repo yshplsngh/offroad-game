@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <numbers>
 
 namespace worldcore {
@@ -245,8 +246,416 @@ Group bed(const VehicleDesign& d, const BodyMetrics& m, const Look& paint, int d
     return g;
 }
 
+/* --------------------------------------------------------------- coupe -- */
+
+// The sports coupe is lofted instead of built from flat panels: a lower shell
+// (nose, raised front fenders around a low hood, doors, wide rear haunches,
+// deck, tail) and a greenhouse (windscreen, roof, fastback). Each is a grid of
+// closed sections, one per station along Z, with normals taken from the grid
+// so neighbouring panels in different materials still shade as one surface.
+
+/// Monotone-in-z Catmull-Rom through (z, y) control points, z descending.
+double spline_z(const std::vector<Vec2>& pts, double z) {
+    if (z >= pts.front().x) return pts.front().y;
+    if (z <= pts.back().x) return pts.back().y;
+    size_t i = 0;
+    while (i + 2 < pts.size() && z < pts[i + 1].x) i++;
+    const Vec2& p1 = pts[i];
+    const Vec2& p2 = pts[i + 1];
+    const Vec2& p0 = i > 0 ? pts[i - 1] : p1;
+    const Vec2& p3 = i + 2 < pts.size() ? pts[i + 2] : p2;
+    const double t = (z - p1.x) / (p2.x - p1.x);
+    const double m1 = (p2.y - p0.y) / std::max(1e-6, std::fabs(p2.x - p0.x)) * std::fabs(p2.x - p1.x);
+    const double m2 = (p3.y - p1.y) / std::max(1e-6, std::fabs(p3.x - p1.x)) * std::fabs(p2.x - p1.x);
+    const double t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * p1.y + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * p2.y + (t3 - t2) * m2;
+}
+
+double smoothstep01(double e0, double e1, double x) {
+    const double t = std::clamp((x - e0) / (e1 - e0), 0.0, 1.0);
+    return t * t * (3 - 2 * t);
+}
+
+/// A lofted surface: rings[station][k], every ring the same length, open along
+/// k (the right half, mirrored into the left by the caller).
+struct LoftGrid {
+    std::vector<std::vector<Vec3>> p;
+    std::vector<std::vector<Vec3>> n;
+
+    /// `hint(i, k, point, ringCentreY)` gives a rough outward direction to orient each normal.
+    void compute_normals(const std::function<Vec3(size_t, size_t, const Vec3&, double)>& hint) {
+        const size_t S = p.size(), K = p[0].size();
+        n.assign(S, std::vector<Vec3>(K));
+        for (size_t i = 0; i < S; i++) {
+            for (size_t k = 0; k < K; k++) {
+                const Vec3 along = p[std::min(S - 1, i + 1)][k] - p[i > 0 ? i - 1 : 0][k];
+                // Around the ring, skipping coincident neighbours (collapsed arch liners).
+                size_t ka = k, kb = k;
+                while (ka > 0 && (p[i][ka] - p[i][k]).length_sq() < 1e-10) ka--;
+                while (kb + 1 < K && (p[i][kb] - p[i][k]).length_sq() < 1e-10) kb++;
+                Vec3 around = p[i][kb] - p[i][ka];
+                if (around.length_sq() < 1e-12) around = {0, 1, 0};
+                Vec3 nn = around.cross(along);
+                nn = nn.length_sq() > 1e-14 ? nn.normalized() : Vec3{0, 1, 0};
+                double cy = 0;
+                for (const auto& v : p[i]) cy += v.y / static_cast<double>(K);
+                if (nn.dot(hint(i, k, p[i][k], cy)) < 0) nn = nn * -1.0;
+                n[i][k] = nn;
+            }
+        }
+    }
+
+    /// Faces (i, k) for which `pick` returns `want`, both halves, outward-facing.
+    Mesh faces(const std::function<int(size_t, size_t)>& pick, int want) const {
+        Mesh m;
+        const size_t S = p.size(), K = p[0].size();
+        for (int side : {1, -1}) {
+            for (size_t i = 0; i + 1 < S; i++) {
+                for (size_t k = 0; k + 1 < K; k++) {
+                    if (pick(i, k) != want) continue;
+                    const std::array<std::pair<size_t, size_t>, 4> q{{{i, k}, {i + 1, k}, {i + 1, k + 1}, {i, k + 1}}};
+                    std::array<Vec3, 4> v, nv;
+                    for (int c = 0; c < 4; c++) {
+                        v[c] = p[q[c].first][q[c].second];
+                        nv[c] = n[q[c].first][q[c].second];
+                        v[c].x *= side;
+                        nv[c].x *= side;
+                    }
+                    const Vec3 face = (v[1] - v[0]).cross(v[2] - v[0]) + (v[2] - v[0]).cross(v[3] - v[0]);
+                    if (face.length_sq() < 1e-14) continue;
+                    const Vec3 avg = nv[0] + nv[1] + nv[2] + nv[3];
+                    const bool flip = face.dot(avg) < 0;
+                    const uint32_t base = static_cast<uint32_t>(m.positions.size());
+                    for (int c = 0; c < 4; c++) {
+                        m.positions.push_back(v[c]);
+                        m.normals.push_back(nv[c]);
+                    }
+                    if (!flip) {
+                        m.indices.insert(m.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+                    } else {
+                        m.indices.insert(m.indices.end(), {base, base + 2, base + 1, base, base + 3, base + 2});
+                    }
+                }
+            }
+        }
+        m.drop_degenerate();
+        return m;
+    }
+};
+
+struct CoupeShape {
+    const VehicleDesign& d;
+    const BodyMetrics& m;
+    double nose, tail, axleY, archR, xInner;
+
+    CoupeShape(const VehicleDesign& design, const BodyMetrics& metrics) : d(design), m(metrics) {
+        nose = m.zFront + 0.06;
+        tail = m.zRear - 0.06;
+        axleY = d.tire.diameter / 2;
+        archR = d.tire.diameter / 2 + d.body.archClearance;
+        xInner = d.axle.track / 2 - d.tire.width / 2 - 0.05;
+    }
+
+    /// Half width of the lower shell: fenders, wide rear haunches, tapered nose.
+    double half_width(double z) const {
+        double w = m.halfW;
+        w += 0.02 * std::exp(-std::pow((z - m.frontAxleZ) / 0.45, 2));
+        w += 0.065 * std::exp(-std::pow((z - m.rearAxleZ - 0.1) / 0.6, 2));  // haunches
+        const double noseT = smoothstep01(nose - 0.55, nose, z);
+        w -= noseT * noseT * 0.2;
+        const double tailT = smoothstep01(tail + 0.3, tail, z);
+        w -= tailT * tailT * 0.07;
+        return w;
+    }
+    double sill(double z) const {
+        return m.sillY + 0.08 * smoothstep01(nose - 0.4, nose, z) + 0.1 * smoothstep01(tail + 0.35, tail, z);
+    }
+    /// Centreline of hood, cabin floor line and deck.
+    double top_centre(double z) const {
+        return spline_z({{nose, m.sillY + 0.2}, {nose - 0.25, m.hoodY - 0.1}, {m.frontAxleZ, m.hoodY - 0.07}, {m.zCowl, m.hoodY},
+                         {m.zCowl - 0.3, m.beltY - 0.02}, {m.rearAxleZ + 0.3, m.beltY}, {m.rearAxleZ - 0.25, m.beltY + 0.02},
+                         {tail + 0.2, m.beltY - 0.06}, {tail, m.beltY - 0.2}},
+                        z);
+    }
+    /// Shoulder line: front fenders stand proud of the hood, haunches over the rear wheels.
+    double top_side(double z) const {
+        const double arch = axleY + archR + 0.035;
+        return spline_z({{nose, m.sillY + 0.24}, {nose - 0.3, arch - 0.02}, {m.frontAxleZ, arch + 0.04}, {m.zCowl, m.beltY - 0.02},
+                         {m.rearAxleZ + 0.6, m.beltY}, {m.rearAxleZ, std::max(arch + 0.04, m.beltY + 0.04)},
+                         {tail + 0.25, m.beltY - 0.02}, {tail, m.beltY - 0.18}},
+                        z);
+    }
+    /// Top of the wheel opening at z (the sill where there is no wheel).
+    double arch_top(double z) const {
+        double y = sill(z);
+        for (double az : {m.frontAxleZ, m.rearAxleZ}) {
+            const double dz = z - az;
+            const double reach = std::sqrt(std::max(0.0, archR * archR - std::pow(axleY - m.sillY, 2)));
+            if (std::fabs(dz) < reach) y = std::max(y, axleY + std::sqrt(archR * archR - dz * dz));
+        }
+        return y;
+    }
+
+    // Greenhouse: windscreen base at the cowl, roof crown, fastback down to the deck.
+    double glass_front() const { return m.zCowl + 0.06; }
+    double glass_back() const { return m.rearAxleZ - 0.5; }
+    double roof(double z) const {
+        const double r = m.roofY, b = m.beltY;
+        return spline_z({{glass_front(), top_centre(glass_front()) - 0.01}, {m.zCowl - 0.28, b + (r - b) * 0.55}, {m.zCowl - 0.62, r - 0.03},
+                         {m.zCowl - 0.95, r}, {m.zCowl - 1.3, r - 0.04}, {m.rearAxleZ + 0.2, b + (r - b) * 0.52},
+                         {glass_back(), b + 0.02}},
+                        z);
+    }
+};
+
+LoftGrid coupe_lower(const CoupeShape& c, int detail) {
+    const double step = detail > 1 ? 0.045 : detail > 0 ? 0.08 : 0.16;
+    std::vector<double> zs;
+    for (double z = c.tail; z < c.nose; z += step) zs.push_back(z);
+    zs.push_back(c.nose);
+    // Stations just either side of each arch edge keep the openings crisp.
+    const double reach = std::sqrt(std::max(0.0, c.archR * c.archR - std::pow(c.axleY - c.m.sillY, 2)));
+    for (double az : {c.m.frontAxleZ, c.m.rearAxleZ}) {
+        for (double s : {-1.0, 1.0}) {
+            zs.push_back(az + s * (reach - 0.002));
+            zs.push_back(az + s * (reach + 0.002));
+        }
+    }
+    std::sort(zs.begin(), zs.end());
+
+    const int sideN = detail > 1 ? 7 : detail > 0 ? 5 : 3;
+    const int topN = detail > 1 ? 10 : detail > 0 ? 6 : 4;
+    LoftGrid g;
+    for (double z : zs) {
+        const double end = std::max(smoothstep01(c.nose - 0.08, c.nose, z), smoothstep01(c.tail + 0.08, c.tail, z));
+        const double w = c.half_width(z) * (1 - end * 0.35);
+        const double yb = c.sill(z);
+        const double ya = c.arch_top(z);
+        const double ys = std::max(c.top_side(z), ya + 0.06);
+        const double yc = std::min(c.top_centre(z), ys + 0.02);
+        const double xi = std::min(c.xInner, w * 0.8);
+        std::vector<Vec3> ring;
+        ring.push_back({0, yb, z});
+        ring.push_back({xi * 0.5, yb, z});
+        ring.push_back({xi, yb, z});
+        ring.push_back({xi, (yb + ya) / 2, z});  // wheel-well liner, collapses where there is no wheel
+        ring.push_back({xi, ya, z});
+        ring.push_back({w - 0.05, ya, z});
+        // Side skin, slight tuck-under at the bottom and tumblehome at the shoulder.
+        const double sideTop = ys - 0.07;
+        for (int k = 0; k < sideN; k++) {
+            const double t = static_cast<double>(k) / (sideN - 1);
+            const double y = ya + (sideTop - ya) * t;
+            const double bulge = 1 - 0.035 * std::pow(2 * t - 1.1, 2);
+            ring.push_back({w * bulge, y, z});
+        }
+        // Shoulder roll into the top surface, then across to the centreline.
+        for (int k = 1; k <= topN; k++) {
+            const double t = static_cast<double>(k) / topN;
+            const double x = w * 0.97 * (1 - t);
+            const double rise = smoothstep01(0.28, 0.82, x / w);
+            const double roll = std::pow(std::max(0.0, (x / w - 0.86) / 0.14), 2) * 0.07;
+            ring.push_back({x, yc + (ys - yc) * rise - roll, z});
+        }
+        g.p.push_back(std::move(ring));
+    }
+    const size_t sideEnd = 6 + static_cast<size_t>(sideN);
+    g.compute_normals([sideEnd](size_t, size_t k, const Vec3&, double) -> Vec3 {
+        if (k <= 1) return {0, -1, 0};    // undertray faces the ground
+        if (k <= 3) return {1, 0, 0};     // wheel-well liner faces the wheel
+        if (k <= 5) return {0.3, -1, 0};  // arch roof faces down onto the tyre
+        if (k < sideEnd) return {1, 0, 0};  // side skin faces out
+        return {0.2, 1, 0};               // hood, shoulders and deck face up
+    });
+    return g;
+}
+
+LoftGrid coupe_greenhouse(const CoupeShape& c, int detail) {
+    const double step = detail > 1 ? 0.05 : detail > 0 ? 0.1 : 0.2;
+    std::vector<double> zs;
+    for (double z = c.glass_back(); z < c.glass_front(); z += step) zs.push_back(z);
+    zs.push_back(c.glass_front());
+    const int sideN = detail > 1 ? 5 : 3;
+    const int topN = detail > 1 ? 8 : 4;
+    LoftGrid g;
+    for (double z : zs) {
+        // The windscreen base sits down on the hood; elsewhere the glass starts at the belt.
+        const double yb = std::min(c.m.beltY - 0.03, c.top_centre(z) - 0.015);
+        const double yr = std::max(c.roof(z), yb + 0.004);
+        const double h = yr - yb;
+        const double wb = c.half_width(z) - 0.12;
+        const double wt = std::min(wb, c.m.halfW * 0.66);
+        std::vector<Vec3> ring;
+        for (int k = 0; k < sideN; k++) {
+            const double t = static_cast<double>(k) / (sideN - 1);
+            ring.push_back({wb + (wt - wb) * t, yb + (h - std::min(h, 0.07)) * t, z});
+        }
+        for (int k = 1; k <= topN; k++) {
+            const double t = static_cast<double>(k) / topN;
+            const double x = wt * (1 - t);
+            const double corner = std::sqrt(std::max(0.0, 1 - std::pow(1 - std::min(1.0, t * 3), 2)));
+            ring.push_back({x, yr - std::min(h, 0.07) * (1 - corner) - 0.03 * (x / wt) * (x / wt), z});
+        }
+        g.p.push_back(std::move(ring));
+    }
+    const double base = c.m.beltY - 0.1;
+    g.compute_normals([base](size_t, size_t, const Vec3& v, double) -> Vec3 { return {v.x, v.y - base, 0}; });
+    return g;
+}
+
+Group coupe_body(const VehicleDesign& d, const BodyMetrics& m, int detail) {
+    Group g;
+    const Look paint = look(0xffffff, d.body.matte ? 0.72f : 0.22f, d.body.matte ? 0.05f : 0.25f, d.body.matte ? 0.1f : 1.0f, 1);
+    Look glass = look(0x0d1116, 0.04f, 0.0f, 1.0f, 2);
+    glass.emission = static_cast<float>(detail > 1 ? 0.68 + d.body.glassTint * 0.3 : 0.85);
+    const Look carbon = look(0x16171a, 0.35f, 0.25f, 1.0f);
+    const CoupeShape c(d, m);
+
+    // Lower shell: paint above the wheel openings, black undertray and wheel wells below.
+    LoftGrid lower = coupe_lower(c, detail);
+    auto lowerPick = [](size_t, size_t k) { return k < 5 ? 1 : 0; };
+    g.add(lower.faces(lowerPick, 0), paint);
+    g.add(lower.faces(lowerPick, 1), TRIM);
+    // End caps: nose and tail, fanned to the centre of the first/last section.
+    for (size_t idx : {size_t{0}, lower.p.size() - 1}) {
+        const auto& ring = lower.p[idx];
+        Mesh cap;
+        const bool front = idx != 0;
+        Vec3 centre{0, 0, ring[0].z};
+        for (const auto& v : ring) centre.y += v.y / static_cast<double>(ring.size());
+        for (int side : {1, -1}) {
+            for (size_t k = 0; k + 1 < ring.size(); k++) {
+                Vec3 a = ring[k], b = ring[k + 1];
+                a.x *= side;
+                b.x *= side;
+                const uint32_t base = static_cast<uint32_t>(cap.positions.size());
+                const Vec3 nrm{0, 0, front ? 1.0 : -1.0};
+                cap.positions.insert(cap.positions.end(), {centre, a, b});
+                cap.normals.insert(cap.normals.end(), {nrm, nrm, nrm});
+                const bool ccw = ((a - centre).cross(b - centre)).dot(nrm) > 0;
+                if (ccw) cap.indices.insert(cap.indices.end(), {base, base + 1, base + 2});
+                else cap.indices.insert(cap.indices.end(), {base, base + 2, base + 1});
+            }
+        }
+        cap.drop_degenerate();
+        g.add(cap, paint);
+    }
+
+    // Greenhouse: windscreen, side and quarter windows, fastback window; roof and pillars in paint.
+    LoftGrid gh = coupe_greenhouse(c, detail);
+    const size_t ghSide = detail > 1 ? 5 : 3;
+    auto ghPick = [&](size_t i, size_t k) {
+        const double z = (gh.p[i][k].z + gh.p[i + 1][k].z) / 2;
+        const bool top = k + 1 > ghSide - 1;
+        const bool screen = z > m.zCowl - 0.62;  // windscreen runs straight into the roof panel
+        const bool roofPanel = z < m.zCowl - 0.62 && z > m.rearAxleZ + 0.35;
+        if (top) {
+            if (screen) return 1;
+            if (roofPanel) return 0;
+            // Fastback window, framed by paint at the edges.
+            const double x = gh.p[i][k].x;
+            return x < gh.p[i].back().x + (gh.p[i][ghSide - 1].x) * 0.7 ? 1 : 0;
+        }
+        const bool aPillar = z > m.zCowl - 0.5;
+        const bool bPillar = std::fabs(z - (m.zCowl - 1.55)) < 0.05;
+        const bool sideGlass = z < m.zCowl - 0.5 && z > m.rearAxleZ + 0.45;
+        if (k == 0) return 0;  // painted sill strip under the windows
+        return (sideGlass && !bPillar && !aPillar) ? 1 : aPillar ? 0 : 0;
+    };
+    g.add(gh.faces(ghPick, 0), paint);
+    g.add(gh.faces(ghPick, 1), glass);
+    // A-pillars and roof rails along the greenhouse's upper corner, windscreen to fastback.
+    for (int sd : {-1, 1}) {
+        std::vector<Vec3> rail;
+        for (size_t i = gh.p.size(); i-- > 0;) {
+            const Vec3& corner = gh.p[i][ghSide - 1];
+            if (corner.z > m.zCowl - 0.02 || corner.z < m.rearAxleZ + 0.1) continue;
+            if (!rail.empty() && std::fabs(rail.back().z - corner.z) < 0.12) continue;
+            rail.push_back({sd * corner.x, corner.y, corner.z});
+        }
+        if (rail.size() >= 2) g.add(tube(rail, 0.018, detail > 1 ? 8 : 5), paint);
+    }
+
+    // Round headlamps set into the tops of the front fenders, raked back with them.
+    const double lampZ = c.nose - 0.34;
+    const double lampX = c.half_width(lampZ) - 0.2;
+    const double lampY = c.top_side(lampZ) - 0.015;
+    for (int s : {-1, 1}) {
+        // Chrome-ringed round lamps standing up out of the fender slope.
+        g.mesh.add(transformed(headlamp(d.body.headlampR).mesh, {s * lampX, lampY, lampZ + 0.07}, {-0.3, 0, 0}));
+        g.mesh.add(transformed(lamp(0.1, 0.035, 0xff8a1e, LAMP_INDICATOR).mesh, {s * (lampX - 0.02), m.sillY + 0.2, c.nose - 0.08}));
+    }
+    // Nose intakes and splitter.
+    g.add(rounded_box(d.body.width * 0.46, 0.1, 0.06, 0.04, 0.008, 2), look(0x08090a, 0.8f, 0.1f), {0, m.sillY + 0.14, c.nose - 0.05});
+    for (int s : {-1, 1}) g.add(rounded_box(0.3, 0.09, 0.08, 0.035, 0.008, 2), look(0x08090a, 0.8f, 0.1f), {s * (m.halfW - 0.3), m.sillY + 0.13, c.nose - 0.12});
+    g.add(rounded_box(d.body.width * 0.82, 0.018, 0.16, 0.008, 0.003, 1), carbon, {0, m.sillY + 0.07, c.nose - 0.12});
+
+    // Side skirts between the arches, flush door handles, door seams.
+    const double skirtZ0 = m.rearAxleZ + c.archR + 0.02, skirtZ1 = m.frontAxleZ - c.archR - 0.02;
+    for (int s : {-1, 1}) {
+        const double zMid = (skirtZ0 + skirtZ1) / 2;
+        g.add(rounded_box(0.05, 0.06, skirtZ1 - skirtZ0, 0.02, 0.006, 2), carbon, {s * (c.half_width(zMid) - 0.02), m.sillY + 0.02, zMid});
+        const double doorFront = m.zCowl - 0.08, doorBack = m.zCowl - 1.28;
+        if (detail > 1) {
+            for (double z : {doorFront, doorBack}) {
+                g.add(rounded_box(0.006, m.beltY - m.sillY - 0.12, 0.006, 0.002, 0.0, 1), look(0x050505, 0.9f, 0.0f),
+                      {s * (c.half_width(z) * 0.995), (m.sillY + m.beltY) / 2 + 0.02, z});
+            }
+        }
+        g.add(rounded_box(0.012, 0.025, 0.14, 0.01, 0.003, 1), CHROME, {s * (c.half_width(doorBack + 0.25) + 0.002), m.beltY - 0.1, doorBack + 0.25});
+    }
+
+    // Side mirrors: body-colour aero housings on short stalks at the base of the A-pillars.
+    for (int s : {-1, 1}) {
+        const double z = m.zCowl - 0.2;
+        const double x = c.half_width(z) - 0.1;
+        Group mir;
+        mir.add(rounded_box(0.14, 0.03, 0.06, 0.012, 0.004, 1), carbon, {s * 0.06, -0.03, 0.01}, {0, 0, s * 0.25});
+        Mesh housing = sphere(0.07, detail > 1 ? 16 : 8, detail > 1 ? 10 : 6);
+        housing.scale(1.25, 0.72, 0.85);
+        mir.add(housing, paint, {s * 0.16, 0.02, 0});
+        mir.add(quad(0.13, 0.075), CHROME, {s * 0.16, 0.02, -0.058}, {0, PI, 0});
+        g.mesh.add(transformed(mir.mesh, {s * x, m.beltY + 0.06, z}));
+    }
+
+    // Engine deck: louvres, then a rear wing on two uprights with end plates.
+    const double deckZ = m.rearAxleZ - 0.72;
+    const double deckY = c.top_centre(deckZ);
+    if (detail > 0) {
+        for (int i = 0; i < (detail > 1 ? 8 : 4); i++) {
+            g.add(rounded_box(0.62, 0.012, 0.022, 0.004, 0.002, 1), look(0x08090a, 0.8f, 0.1f),
+                  {0, deckY + 0.004, m.rearAxleZ - 0.5 - i * 0.045 * (detail > 1 ? 1 : 2)});
+        }
+    }
+    const double wingY = deckY + 0.22, wingZ = deckZ - 0.12;
+    const double wingW = d.body.width * 0.84;
+    g.add(rounded_box(wingW, 0.03, 0.3, 0.014, 0.006, 2), carbon, {0, wingY, wingZ}, {0.1, 0, 0});
+    g.add(rounded_box(wingW - 0.02, 0.012, 0.06, 0.005, 0.002, 1), paint, {0, wingY + 0.02, wingZ - 0.13}, {-0.25, 0, 0});  // gurney lip
+    for (int s : {-1, 1}) {
+        g.add(rounded_box(0.028, 0.22, 0.12, 0.012, 0.004, 1), carbon, {s * wingW * 0.3, wingY - 0.11, wingZ + 0.04}, {0.15, 0, 0});
+        g.add(rounded_box(0.012, 0.12, 0.36, 0.01, 0.003, 1), carbon, {s * (wingW / 2 + 0.006), wingY + 0.01, wingZ});
+    }
+
+    // Tail: full-width light bar, end lamps, diffuser and twin exhaust tips.
+    const double tailY = c.top_centre(c.tail + 0.2) - 0.1;
+    g.mesh.add(transformed(lamp(d.body.width * 0.78, 0.035, 0xd81f26, LAMP_TAIL).mesh, {0, tailY, c.tail + 0.07}, {0, PI, 0}));
+    for (int s : {-1, 1}) {
+        g.mesh.add(transformed(lamp(0.2, 0.07, 0xd81f26, LAMP_TAIL).mesh, {s * (m.halfW - 0.2), tailY - 0.02, c.tail + 0.09}, {0, PI, 0}));
+    }
+    g.add(rounded_box(d.body.width * 0.7, 0.12, 0.2, 0.02, 0.006, 2), carbon, {0, m.sillY + 0.08, c.tail + 0.16});
+    for (int s : {-1, 1}) {
+        g.add(cylinder(0.045, 0.045, 0.12, detail > 1 ? 18 : 10), CHROME, {s * 0.13, m.sillY + 0.12, c.tail + 0.08}, {HALF_PI, 0, 0});
+        g.add(cylinder(0.035, 0.035, 0.121, detail > 1 ? 18 : 10), look(0x050505, 0.9f, 0.0f), {s * 0.13, m.sillY + 0.12, c.tail + 0.08}, {HALF_PI, 0, 0});
+    }
+    // Cabin floor and firewall (seen through the glass).
+    g.add(rounded_box(d.body.width - 0.3, 0.03, 1.6, 0.02, 0.005, 1), BEDLINER, {0, m.sillY + 0.03, m.zCowl - 0.9});
+    g.add(rounded_box(d.body.width - 0.3, 0.5, PANEL, 0.02, 0.005, 1), BEDLINER, {0, m.sillY + 0.3, m.zCowl - 1.75});
+    return g;
+}
+
 Group body(const VehicleDesign& d, const BodyMetrics& m, int detail) {
     Group g;
+    if (d.body.coupe) return coupe_body(d, m, detail);
     Look paint = look(0xffffff, d.body.matte ? 0.72f : 0.3f, d.body.matte ? 0.05f : 0.2f, d.body.matte ? 0.1f : 1.0f, 1);
     const bool pickup = d.body.pickup;
     const double bodyRear = pickup ? m.zCabRear : m.zRear;
@@ -406,6 +815,14 @@ Group ladder_frame(const VehicleDesign& d) {
 
 PaintedMesh solid_axle(const VehicleDesign& d, bool steering, int detail) {
     Group g;
+    if (d.body.coupe) {
+        // Hidden under a low body: just the hub carriers behind each wheel.
+        for (int s : {-1, 1}) {
+            g.add(cylinder(0.035, 0.035, 0.22, detail > 1 ? 12 : 8), CAST_IRON, {s * (d.axle.track / 2 - 0.2), 0, 0}, {0, 0, HALF_PI});
+            g.add(rounded_box(0.06, 0.2, 0.1, 0.02, 0.005, 1), BLACK_STEEL, {s * (d.axle.track / 2 - 0.13), 0, 0});
+        }
+        return g.mesh;
+    }
     const double half = d.axle.track / 2;
     const double diffOffset = d.axle.diffOffset * (steering ? -1 : 1);
     for (int s : {-1, 1}) {
@@ -596,9 +1013,26 @@ PaintedMesh wheel(const VehicleDesign& d, int side, int detail) {
     const double rimR = d.tire.rimInch * 0.0254 / 2;
     const int seg = detail > 1 ? 64 : detail > 0 ? 36 : 20;
     const int lugs = detail > 1 ? 22 : detail > 0 ? 16 : 12;
-    const TireSection section = tire_section(R, d.tire.width, rimR);
-    g.add(tire_carcass(section, seg), RUBBER);
-    g.add(tread(section, lugs, detail), TREAD);  // even the far LOD keeps blocks: the silhouette is knobbly
+    TireSection section = tire_section(R, d.tire.width, rimR);
+    if (d.tire.road) {
+        // Low-profile road tyre: almost no tread depth, tight shoulders, and a
+        // few circumferential grooves instead of blocks.
+        section.depth = R * 0.012;
+        section.Rc = R - section.depth;
+        section.sr = std::min(section.hw * 0.3, (section.Rc - rimR) * 0.45);
+        section.bulge = (section.Rc - rimR) * 0.05;
+        g.add(tire_carcass(section, seg), TREAD);
+        if (detail > 0) {
+            for (double f : {-0.5, -0.17, 0.17, 0.5}) {
+                Mesh groove = torus(section.Rc + 0.0015, 0.0045, 4, seg);
+                groove.rotate_y(HALF_PI);
+                g.add(groove, look(0x060607, 0.95f, 0.0f), {f * (section.hw - section.sr), 0, 0});
+            }
+        }
+    } else {
+        g.add(tire_carcass(section, seg), RUBBER);
+        g.add(tread(section, lugs, detail), TREAD);  // even the far LOD keeps blocks: the silhouette is knobbly
+    }
     if (detail > 1) {
         for (int s : {-1, 1}) {
             Mesh ring = torus(section.rimR + (section.Rc - section.rimR) * 0.45, 0.005, 6, 48);
@@ -718,7 +1152,10 @@ Group interior(const VehicleDesign& d, const BodyMetrics& m, int detail, Vehicle
     const int side = d.rhd ? -1 : 1;
     const double seatZ = m.zCowl - 0.95;
     const double floorY = m.sillY + 0.04;
-    for (int s : {-1, 1}) g.mesh.add(transformed(seat(d.features.cage).mesh, {s * (d.body.width * 0.24), floorY, seatZ}));
+    const double seatScale = d.body.coupe ? 0.8 : 1.0;  // low bucket seats under a coupe roof
+    for (int s : {-1, 1}) {
+        g.mesh.add(transformed(seat(d.features.cage).mesh, {s * (d.body.width * 0.24), floorY, seatZ}, {}, {seatScale, seatScale, seatScale}));
+    }
     if (d.body.doors == 4 && detail > 1) {
         g.add(rounded_box(d.body.width - 0.2, 0.14, 0.46, 0.05, 0.01, 2), SEAT, {0, floorY + 0.2, seatZ - 0.82});
         g.add(rounded_box(d.body.width - 0.2, 0.56, 0.12, 0.05, 0.01, 2), SEAT, {0, floorY + 0.48, seatZ - 1.04}, {0.16, 0, 0});
@@ -998,19 +1435,22 @@ VehicleMeshes build_vehicle_meshes(const VehicleDesign& d) {
     for (int detail = 0; detail < 3; detail++) {
         VehicleLod& lod = out.lods[static_cast<size_t>(detail)];
         Group chassis;
-        chassis.add(ladder_frame(d));
-        chassis.add(drivetrain(d, detail));
-        chassis.add(armour(d, detail));
+        const bool coupe = d.body.coupe;
+        if (!coupe) {
+            chassis.add(ladder_frame(d));
+            chassis.add(drivetrain(d, detail));
+            chassis.add(armour(d, detail));
+        }
         chassis.add(body(d, m, detail));
         if (detail > 0) chassis.add(interior(d, m, detail, rig));  // the far LOD has no cabin
         // Fixed suspension hardware: bump stops, steering box.
-        for (int ai = 0; ai < 2; ai++) {
+        for (int ai = 0; ai < 2 && !coupe; ai++) {
             const double axleZ = rig.axleZ[static_cast<size_t>(ai)];
             for (int s : {-1, 1}) chassis.add(cylinder(0.03, 0.038, 0.09, 10), RUBBER, {s * (d.axle.track / 2 - 0.42), f.railY - 0.1, axleZ});
             if (ai == 0) chassis.add(rounded_box(0.11, 0.14, 0.11, 0.02, 0.005, 1), CAST_IRON, {f.frameWidth / 2 + 0.04, f.railY + 0.02, axleZ - 0.16});
         }
         if (d.features.cage && detail > 0) chassis.add(roll_cage(d, m));
-        chassis.add(front_bumper(d, m, d.features.winch));
+        if (!coupe) chassis.add(front_bumper(d, m, d.features.winch));
         if (d.features.rearBumper) chassis.add(rear_bumper(d, m));
         if (d.features.snorkel) chassis.add(snorkel(m, d.rhd ? -1 : 1));
         if (d.features.roofRack) chassis.add(roof_rack(d, m, detail > 1));

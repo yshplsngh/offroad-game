@@ -52,6 +52,8 @@ bool spec_from(const Dictionary& v, worldcore::VehicleSpec& s) {
     s.perf.lowRangeRatio = num(perf, "lowRangeRatio", s.perf.lowRangeRatio);
     s.perf.finalDrive = num(perf, "finalDrive", s.perf.finalDrive);
     s.perf.brakeTorque = num(perf, "brakeTorque", s.perf.brakeTorque);
+    s.perf.tireGrip = num(perf, "tireGrip", s.perf.tireGrip);
+    s.perf.tractionControl = num(perf, "tractionControl", s.perf.tractionControl);
     s.perf.forwardGears = static_cast<int>(std::min<int64_t>(gears.size(), s.perf.gearRatios.size()));
     for (int i = 0; i < s.perf.forwardGears; i++) s.perf.gearRatios[static_cast<size_t>(i)] = gears[i];
     s.wheelbase = num(frame, "wheelbase", s.wheelbase);
@@ -234,6 +236,7 @@ Dictionary OffroadVehicle::wheel(int index) const {
     d["spin"] = w.spin;
     d["omega"] = w.omega;
     d["travel"] = w.travel;
+    d["sink"] = w.sink;
     d["contact"] = w.contact;
     d["load"] = w.load;
     d["slip"] = w.slip;
