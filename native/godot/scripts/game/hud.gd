@@ -248,11 +248,19 @@ func say(text: String, seconds := 2.0) -> void:
 
 
 func update_hud(t: Dictionary, delta: float, stats_text: String) -> void:
-	gauges.text = "%3d km/h   %s%s   %s   %s\n%4d rpm   %s%s" % [
+	# Vehicle systems (REALISM.md R3), injected by main when present.
+	var systems := ""
+	if t.has("fuel"):
+		systems += "   fuel %d%%" % roundi(float(t.fuel) * 100.0)
+	if float(t.get("damage", 0.0)) > 0.02:
+		systems += "   dmg %d%%" % roundi(float(t.damage) * 100.0)
+	if float(t.get("depth", 0.0)) > 0.15:
+		systems += "   water %.1f m" % float(t.depth)
+	gauges.text = "%3d km/h   %s%s   %s   %s\n%4d rpm   %s%s%s" % [
 		roundi(t.kph), t.gear_name, " LOW" if t.low_range else "", "lock " + t.lock,
 		"%.0f%% stuck" % (t.stuck * 100.0) if t.stuck > 0.05 else "",
 		roundi(t.rpm), SURFACE_NAMES[clampi(t.surface, 0, 7)],
-		"   winch %.0f%%" % (t.winch_tension * 100.0) if t.winch else ""]
+		"   winch %.0f%%" % (t.winch_tension * 100.0) if t.winch else "", systems]
 	_alert_timer -= delta
 	alert.visible = _alert_timer > 0.0
 	if stats.visible:

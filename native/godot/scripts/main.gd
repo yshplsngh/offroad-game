@@ -50,7 +50,11 @@ var tire_audio: TireAudio
 var wheel_fx: WheelFX
 var ruts: RutTrail
 var sky: SkyCycle
+var systems: VehicleSystems
+var cable: WinchCable
 var lights_on := false
+var _was_flooded := false
+var _was_empty := false
 var input: VehicleInput
 var hud: GameHud
 var chase: ChaseCamera
@@ -174,7 +178,11 @@ func _ready() -> void:
 		_save_setting("audio", "engine_volume", v))
 	hud.time_changed.connect(func(h: float) -> void: sky.set_time(h / 24.0))
 	hud.recover_pressed.connect(func() -> void:
-		hud.say("recovered - resume to see it" if vehicle.flip() else "recovery cooling down", 1.5))
+		if vehicle.flip():
+			systems.service()
+			hud.say("recovered & serviced - resume to see it", 1.5)
+		else:
+			hud.say("recovery cooling down", 1.5))
 	hud.quit_pressed.connect(func() -> void: get_tree().quit())
 
 	if smoke and not smoke_chase:
@@ -283,6 +291,17 @@ func _spawn_vehicle(index: int, x: float, z: float, heading: float) -> void:
 		ruts.name = "RutTrail"
 		add_child(ruts)
 	ruts.setup(vehicle, spec, field)
+	# Fording/damage/fuel systems + the rendered winch rope (REALISM.md R3).
+	if systems == null:
+		systems = VehicleSystems.new()
+		systems.name = "Systems"
+		add_child(systems)
+	systems.configure(spec, field)
+	if cable == null:
+		cable = WinchCable.new()
+		cable.name = "WinchCable"
+		add_child(cable)
+	cable.setup(vehicle, spec)
 	if chase:
 		chase.target = vehicle
 
@@ -380,7 +399,11 @@ func _on_action(name: String) -> void:
 			else:
 				hud.say("slow down to change range", 1.2)
 		"recover":
-			hud.say("recovered" if vehicle.flip() else "recovery cooling down", 1.2)
+			if vehicle.flip():
+				systems.service()  # recovery is the field service (R3)
+				hud.say("recovered & serviced", 1.2)
+			else:
+				hud.say("recovery cooling down", 1.2)
 		"winch":
 			hud.say("winch anchored - hold G to reel in" if vehicle.winch_attach() else "winch released")
 		"camera":
@@ -498,7 +521,21 @@ func _physics_process(_delta: float) -> void:
 				_hold = true
 		else:
 			_hold_timer = 0.0
-	vehicle.set_input(eff_throttle, maxf(eff_brake, 1.0 if _hold else 0.0),
+	# Vehicle systems (R3): a flooded, empty or beaten engine delivers less -
+	# consequences arrive through the inputs, never by editing the physics.
+	systems.update(tel, eff_throttle, vehicle.global_position, get_physics_process_delta_time())
+	if systems.flooded != _was_flooded:
+		_was_flooded = systems.flooded
+		if systems.flooded:
+			hud.say("ENGINE FLOODED - winch out (F/G) and let it dry, or R to service", 3.5)
+		else:
+			hud.say("engine dried out", 1.5)
+	if (systems.fuel <= 0.0) != _was_empty:
+		_was_empty = systems.fuel <= 0.0
+		if _was_empty:
+			hud.say("OUT OF FUEL - R to service", 3.5)
+	vehicle.set_input(eff_throttle * systems.throttle_scale(),
+			maxf(eff_brake, 1.0 if _hold else 0.0),
 			input.handbrake, input.steer, input.winch)
 
 
@@ -543,8 +580,16 @@ func _process(delta: float) -> void:
 			head and bool(tel.low_range))
 	visual.update_dirt(float(tel.mud), int(tel.surface), delta)
 	if engine_audio:
-		engine_audio.update(float(tel.rpm), input.throttle, delta)
-		tire_audio.update(float(tel.speed), float(tel.slip), int(tel.surface), delta)
+		# R3 conditions: water muffles then chokes the engine, damage rattles
+		# it, no fuel or a flooded intake kills it; the winch rope creaks.
+		var sputter := clampf((systems.submersion - 0.6) / 0.4, 0.0, 1.0)
+		engine_audio.update(float(tel.rpm), input.throttle, delta,
+				systems.submersion, sputter, systems.damage, systems.running())
+		tire_audio.update(float(tel.speed), float(tel.slip), int(tel.surface), delta,
+				float(tel.winch_tension) if tel.winch else 0.0)
+	tel["fuel"] = systems.fuel
+	tel["damage"] = systems.damage
+	tel["depth"] = systems.depth
 	hud.update_hud(tel, delta, stats_text)
 
 	if smoke and _elapsed > (8.0 if roll_test else 6.0):

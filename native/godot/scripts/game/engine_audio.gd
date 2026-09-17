@@ -20,6 +20,9 @@ var _phase := 0.0
 var _rpm := 800.0
 var _level := 0.0
 var _noise := 0.0
+var _gate := 1.0     # misfire gate (sputter)
+var _gate_t := 0
+var _rattle_pop := 0.0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -35,12 +38,18 @@ func _ready() -> void:
 	_playback = get_stream_playback()
 
 
-## Called once per rendered frame with live telemetry.
-func update(rpm: float, throttle: float, delta: float) -> void:
+## Called once per rendered frame with live telemetry. Condition inputs
+## (REALISM.md R3): muffle 0-1 (submersion), sputter 0-1 (water at the
+## intake: misfire chunks), rattle 0-1 (damage), running (fuel/flooded).
+func update(rpm: float, throttle: float, delta: float, muffle := 0.0,
+		sputter := 0.0, rattle := 0.0, running := true) -> void:
 	if _playback == null:
 		return
 	_rpm += (maxf(rpm, 600.0) - _rpm) * minf(delta * 8.0, 1.0)
-	var target := (0.16 + 0.22 * throttle + 0.10 * clampf((_rpm - 900.0) / 4200.0, 0.0, 1.0)) * volume
+	var target := (0.16 + 0.22 * throttle + 0.10 * clampf((_rpm - 900.0) / 4200.0, 0.0, 1.0)) \
+			* volume * (1.0 - muffle * 0.65)
+	if not running:
+		target = 0.0
 	_level += (target - _level) * minf(delta * 10.0, 1.0)
 	var frames := _playback.get_frames_available()
 	if frames <= 0:
@@ -57,7 +66,16 @@ func update(rpm: float, throttle: float, delta: float) -> void:
 		s += sin(_phase * 0.5) * 0.18  # sub-harmonic rumble
 		_noise = _noise * 0.92 + (_rng.randf() * 2.0 - 1.0) * 0.08
 		s += _noise * (0.15 + 0.45 * throttle)
-		var v := clampf(s * _level, -1.0, 1.0)
+		if rattle > 0.01 and _rng.randf() < rattle * 0.0025:
+			_rattle_pop = 1.0  # a loose part answering every firing pulse
+		_rattle_pop *= 0.90
+		s += _rattle_pop * rattle * 0.55 * (_rng.randf() * 2.0 - 1.0)
+		_gate_t -= 1
+		if _gate_t <= 0:
+			# Misfire chunks: whole firing groups drop out as water reaches in.
+			_gate = 0.15 if _rng.randf() < sputter * 0.55 else 1.0
+			_gate_t = _rng.randi_range(300, 1100)
+		var v := clampf(s * _level * _gate, -1.0, 1.0)
 		buf[i] = Vector2(v, v)
 	_playback.push_buffer(buf)
 	fill_worst_ms = maxf(fill_worst_ms, (Time.get_ticks_usec() - t0) / 1000.0)

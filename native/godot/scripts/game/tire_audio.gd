@@ -46,16 +46,18 @@ func _ready() -> void:
 	_playback = get_stream_playback()
 
 
-func update(speed: float, slip: float, surface: int, delta: float) -> void:
+## `strain` is winch tension (0-1): the rope creaks and snaps under load.
+func update(speed: float, slip: float, surface: int, delta: float, strain := 0.0) -> void:
 	if _playback == null:
 		return
 	var p: Array = SURF.get(surface, SURF[2])
 	var k := minf(delta * 6.0, 1.0)
 	_lp += (float(p[0]) - _lp) * k
 	_gain += (float(p[1]) - _gain) * k
-	_pop_rate = float(p[2])
+	_pop_rate = float(p[2]) + strain * 0.004  # creak snaps under load
 	var skid := 0.35 if slip > 0.5 and speed > 2.0 else 0.0
-	var target := (clampf(speed / 22.0, 0.0, 1.0) * 0.40 + skid) * _gain * volume
+	var target := (clampf(speed / 22.0, 0.0, 1.0) * 0.40 + skid + strain * 0.30) \
+			* maxf(_gain, 0.6 if strain > 0.05 else _gain) * volume
 	_level += (target - _level) * minf(delta * 8.0, 1.0)
 	var frames := _playback.get_frames_available()
 	if frames <= 0 or _level < 0.003:

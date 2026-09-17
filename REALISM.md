@@ -93,14 +93,26 @@ never touch physics inputs).
   call, instances written only on drop, oldest overwritten; the analytic
   terrain never deforms.
 
-### R3 — consequences (gameplay systems, PLAN backlog)
-- Water fording depth: engine stall + hydrolock risk past intake height,
-  audio muffling, spray FX (uses analytic river/water data).
-- Damage model: impact telemetry already recorded → panel dirt/scratch masks,
-  drivetrain efficiency loss; repair at recovery.
-- Fuel: consumption from rpm × throttle; jerry-can accessory already baked.
-- Winch realism: tree anchor points from the scatter set (milestone 3's
-  `obstaclesNear`), cable sag render, strain audio.
+### R3 — consequences ✅ landed (`VehicleSystems`, pure game layer)
+Consequences arrive as **input scaling, HUD state and audio character** —
+never as edits to the frozen force math.
+- ✅ Fording: the analytic world has no water plane, so depth is estimated —
+  on a water surface the water level is the lowest non-water ground on a
+  7 m probe ring (the bank the river fills to; probed at 4 Hz). Submersion
+  muffles the engine, water at the intake makes it sputter (misfire gate in
+  the synth), past intake height it floods: throttle dies until ~12 s dry or
+  a service. HUD shows `water x.x m`.
+- ✅ Damage: telemetry `impact` spikes accumulate damage; damage caps
+  throttle (up to −50%) and drives a rattle layer in the engine synth.
+- ✅ Fuel: drains with rpm × throttle (one tank ≈ 28 min flat-out), HUD
+  gauge; empty = engine dead.
+- ✅ Recovery (`R`) is the field service: repaired, refuelled, dried.
+- ✅ Winch: rope rendered (sagging polyline, straightens under load) from the
+  bumper to the model's anchor — `OffroadVehicle.winch_anchor()` exposes the
+  existing state (no physics change); rope strain creaks/snaps in the tire
+  audio layer. Tree anchor points still wait on milestone 3 `obstaclesNear`.
+- Caveat: fording numbers are tuned against the depth estimator, not yet
+  against a real river crossing on the reference machine — playtest item.
 
 ### R4 — physics evolution (only after native baselines exist)
 - Record native-vs-native regression traces (PLAN.md replay section), then:

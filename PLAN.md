@@ -369,7 +369,9 @@ accumulation on the body, procedural engine audio (menu volume, persisted),
 speed-driven FOV, per-wheel dust/mud/spray particles. R2 landed: terrain
 shading pass (fog/grading/wetness), `SkyCycle` time-of-day with auto
 headlights and a menu clock, `TireAudio` surface noise, `RutTrail`
-visual-only wheel ruts.
+visual-only wheel ruts. R3 landed (`VehicleSystems`, game layer only):
+fording depth/flooding, impact damage, fuel, recovery-as-service, rendered
+winch rope with strain audio (`OffroadVehicle.winch_anchor()` exposes state).
 
 - [x] Chase and close cameras; HUD speed/gear/range/lock/rpm/surface/winch/stuck
 - [x] Keyboard + gamepad bindings (same as the reference)
