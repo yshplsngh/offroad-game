@@ -1,0 +1,17 @@
+{
+  "format": "ridgeline-machine/1",
+  "role": "reference-igpu",
+  "hostname": "fedora",
+  "recorded_at": "2026-09-16T22:17:22Z",
+  "os": "Fedora Linux 44 (Workstation Edition)",
+  "kernel": "7.2.5-200.fc44.x86_64",
+  "session": "wayland",
+  "cpu": "13th Gen Intel(R) Core(TM) i5-1334U",
+  "cores": 12,
+  "memory_gb": 23.2,
+  "gpu": "VGA compatible controller: Intel Corporation Raptor Lake-P [Iris Xe Graphics] (rev 04)",
+  "vulkan_driver": "",
+  "opengl": "4.6 (Compatibility Profile) Mesa 26.1.8",
+  "power": "performance",
+  "on_ac": "1"
+}

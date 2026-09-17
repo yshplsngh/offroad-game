@@ -1,0 +1,164 @@
+{
+  "_source": "Source of truth. Exported once from the browser reference (git a59773d), which has since been removed. C++ defaults are tested against this file.",
+  "chunk": 128,
+  "viewChunks": 6,
+  "fixedDt": 0.016666666666666666,
+  "axes": {
+    "east": "+X",
+    "up": "+Y",
+    "north": "+Z",
+    "unit": "metre"
+  },
+  "surfaces": [
+    {
+      "key": "ROCK",
+      "id": 0,
+      "name": "rock",
+      "friction": 1.05,
+      "drag": 0.012,
+      "sink": 0,
+      "deform": false,
+      "color": "#6e6a64",
+      "dust": 0.15
+    },
+    {
+      "key": "GRAVEL",
+      "id": 1,
+      "name": "gravel",
+      "friction": 0.82,
+      "drag": 0.03,
+      "sink": 0.02,
+      "deform": true,
+      "color": "#7a7168",
+      "dust": 0.75
+    },
+    {
+      "key": "DIRT",
+      "id": 2,
+      "name": "dirt",
+      "friction": 0.88,
+      "drag": 0.026,
+      "sink": 0.02,
+      "deform": true,
+      "color": "#6b5638",
+      "dust": 0.85
+    },
+    {
+      "key": "GRASS",
+      "id": 3,
+      "name": "grass",
+      "friction": 0.76,
+      "drag": 0.034,
+      "sink": 0.03,
+      "deform": true,
+      "color": "#4e6136",
+      "dust": 0.2
+    },
+    {
+      "key": "LOAM",
+      "id": 4,
+      "name": "loam",
+      "friction": 0.7,
+      "drag": 0.055,
+      "sink": 0.06,
+      "deform": true,
+      "color": "#4a3c26",
+      "dust": 0.3
+    },
+    {
+      "key": "MUD",
+      "id": 5,
+      "name": "mud",
+      "friction": 0.38,
+      "drag": 0.145,
+      "sink": 0.16,
+      "deform": true,
+      "color": "#3b2f1d",
+      "dust": 0
+    },
+    {
+      "key": "WATER",
+      "id": 6,
+      "name": "water",
+      "friction": 0.3,
+      "drag": 0.19,
+      "sink": 0.1,
+      "deform": false,
+      "color": "#2c4442",
+      "dust": 0
+    },
+    {
+      "key": "SNOW",
+      "id": 7,
+      "name": "snow",
+      "friction": 0.45,
+      "drag": 0.09,
+      "sink": 0.1,
+      "deform": true,
+      "color": "#d8dde4",
+      "dust": 0
+    }
+  ],
+  "biomes": [
+    {
+      "key": "RIVERBED",
+      "id": 0,
+      "name": "riverbed",
+      "band": [
+        -99,
+        3
+      ],
+      "surface": "GRAVEL"
+    },
+    {
+      "key": "MUDFLAT",
+      "id": 1,
+      "name": "mudflat",
+      "band": [
+        1,
+        9
+      ],
+      "surface": "MUD"
+    },
+    {
+      "key": "MEADOW",
+      "id": 2,
+      "name": "meadow",
+      "band": [
+        3,
+        46
+      ],
+      "surface": "GRASS"
+    },
+    {
+      "key": "PINE",
+      "id": 3,
+      "name": "pine",
+      "band": [
+        12,
+        108
+      ],
+      "surface": "LOAM"
+    },
+    {
+      "key": "SCREE",
+      "id": 4,
+      "name": "scree",
+      "band": [
+        88,
+        168
+      ],
+      "surface": "GRAVEL"
+    },
+    {
+      "key": "ALPINE",
+      "id": 5,
+      "name": "alpine",
+      "band": [
+        148,
+        999
+      ],
+      "surface": "ROCK"
+    }
+  ]
+}

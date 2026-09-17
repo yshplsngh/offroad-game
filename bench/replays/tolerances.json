@@ -1,0 +1,17 @@
+{
+  "_note": "Native vs reference replay gates (tools/compare-replay.mjs): deviation <= floor + factor x reference self-envelope. Floors are what a driver could not feel; factor allows Jolt to be somewhat more sensitive than Rapier. Initial values, to be reviewed with handling tuning.",
+  "default": {
+    "factor": 3,
+    "floor": {
+      "pos": 0.5,
+      "height": 0.25,
+      "speedKph": 2.0,
+      "headingDeg": 2.0,
+      "rollDeg": 3.0,
+      "pitchDeg": 3.0,
+      "rpm": 250
+    },
+    "gearMismatchSamples": 3
+  },
+  "replays": {}
+}

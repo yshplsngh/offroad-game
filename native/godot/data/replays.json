@@ -1,0 +1,138 @@
+{
+  "_source": "Source of truth. Exported once from the browser reference (git a59773d), which has since been removed.",
+  "traceEvery": 6,
+  "replays": {
+    "drive-straight-v1": {
+      "seed": 1337,
+      "vehicle": 0,
+      "heading": 0,
+      "seconds": 20,
+      "segments": [
+        {
+          "from": 0,
+          "axes": {}
+        },
+        {
+          "from": 1,
+          "axes": {
+            "throttle": 1
+          }
+        }
+      ]
+    },
+    "crawl-turn-v1": {
+      "seed": 1337,
+      "vehicle": 0,
+      "heading": 0,
+      "seconds": 24,
+      "segments": [
+        {
+          "from": 0,
+          "axes": {}
+        },
+        {
+          "from": 1,
+          "axes": {
+            "throttle": 0.6
+          }
+        },
+        {
+          "from": 5,
+          "axes": {
+            "throttle": 0.6,
+            "steer": 1
+          }
+        },
+        {
+          "from": 11,
+          "axes": {
+            "throttle": 0.6,
+            "steer": -1
+          }
+        },
+        {
+          "from": 17,
+          "axes": {
+            "brake": 1
+          }
+        },
+        {
+          "from": 19,
+          "axes": {
+            "throttle": 1
+          },
+          "actions": [
+            "lock",
+            "lock"
+          ]
+        }
+      ]
+    },
+    "shift-brake-v1": {
+      "seed": 1337,
+      "vehicle": 2,
+      "heading": 0.8,
+      "seconds": 20,
+      "segments": [
+        {
+          "from": 0,
+          "axes": {}
+        },
+        {
+          "from": 0.5,
+          "axes": {},
+          "actions": [
+            "range"
+          ]
+        },
+        {
+          "from": 1,
+          "axes": {
+            "throttle": 1
+          }
+        },
+        {
+          "from": 5,
+          "axes": {
+            "throttle": 1
+          },
+          "actions": [
+            "gearUp"
+          ]
+        },
+        {
+          "from": 9,
+          "axes": {
+            "throttle": 1
+          },
+          "actions": [
+            "gearUp"
+          ]
+        },
+        {
+          "from": 13,
+          "axes": {
+            "brake": 1
+          }
+        },
+        {
+          "from": 15,
+          "axes": {
+            "handbrake": 1,
+            "steer": 0.5
+          }
+        },
+        {
+          "from": 17,
+          "axes": {
+            "throttle": 0.4
+          },
+          "actions": [
+            "gearDown",
+            "gearDown"
+          ]
+        }
+      ]
+    }
+  }
+}

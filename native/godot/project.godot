@@ -1,0 +1,36 @@
+; Ridgeline Offroad - native Godot project.
+; Performance preset: Mobile (Vulkan) renderer, Jolt physics, fixed 60 Hz step,
+; no shadow maps anywhere. See PLAN.md "Native runtime decision".
+
+config_version=5
+
+[application]
+
+config/name="Ridgeline Offroad"
+config/description="Open-world offroad 4x4 sim"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/scale_mode="fractional"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+3d/default_gravity=9.81
+common/physics_ticks_per_second=60
+common/max_physics_steps_per_frame=5
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/vram_compression/import_etc2_astc=false
+lights_and_shadows/directional_shadow/size=0
+lights_and_shadows/positional_shadow/atlas_size=0
+anti_aliasing/quality/msaa_3d=0
+scaling_3d/scale=1.0
