@@ -46,6 +46,19 @@ Vector3 TerrainField::find_spawn(double x, double z) const {
     return Vector3(s.x, s.y, s.z);
 }
 
+PackedFloat32Array TerrainField::height_grid(double x0, double z0, int width, int depth, double spacing) const {
+    PackedFloat32Array out;
+    ERR_FAIL_COND_V_MSG(width < 2 || depth < 2 || width > 1024 || depth > 1024, out, "height_grid: bad size");
+    out.resize(static_cast<int64_t>(width) * depth);
+    float* w = out.ptrw();
+    for (int j = 0; j < depth; j++) {
+        for (int i = 0; i < width; i++) {
+            *w++ = static_cast<float>(field_->height(x0 + i * spacing, z0 + j * spacing));
+        }
+    }
+    return out;
+}
+
 double TerrainField::chunk_size() const { return worldcore::kChunk; }
 
 Ref<ArrayMesh> TerrainField::build_chunk(int cx, int cz, int lod) const {
@@ -96,6 +109,7 @@ void TerrainField::_bind_methods() {
     ClassDB::bind_method(D_METHOD("normal", "x", "z"), &TerrainField::normal);
     ClassDB::bind_method(D_METHOD("sample", "x", "z"), &TerrainField::sample);
     ClassDB::bind_method(D_METHOD("find_spawn", "x", "z"), &TerrainField::find_spawn);
+    ClassDB::bind_method(D_METHOD("height_grid", "x0", "z0", "width", "depth", "spacing"), &TerrainField::height_grid);
     ClassDB::bind_method(D_METHOD("build_chunk", "cx", "cz", "lod"), &TerrainField::build_chunk);
     ClassDB::bind_method(D_METHOD("chunk_size"), &TerrainField::chunk_size);
     ADD_PROPERTY(PropertyInfo(Variant::INT, "seed"), "set_seed", "get_seed");
