@@ -329,6 +329,11 @@ near-vehicle obstacle set         ─► only the small collision radius gets co
 
 # Game layer backlog
 
+Realism roadmap: see [REALISM.md](REALISM.md) (research, tranches R1-R4,
+budgets). R1 landed: pedal-answering lights (`H` + menu), mud/dirt
+accumulation on the body, procedural engine audio (menu volume, persisted),
+speed-driven FOV, per-wheel dust/mud/spray particles.
+
 - [x] Chase and close cameras; HUD speed/gear/range/lock/rpm/surface/winch/stuck
 - [x] Keyboard + gamepad bindings (same as the reference)
 - [x] Auto-hold (game layer): brake held for the model off-throttle near

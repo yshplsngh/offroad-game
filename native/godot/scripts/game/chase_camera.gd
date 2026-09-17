@@ -28,6 +28,7 @@ var sensitivity := 1.0
 var _yaw := 0.0
 var _pitch := 0.0
 var _mouse_idle := 0.0
+var _fov_stretch := 0.0
 
 
 func cycle_mode() -> String:
@@ -84,5 +85,9 @@ func _update(delta: float, instant: bool) -> void:
 	if field:
 		want.y = maxf(want.y, field.height(want.x, want.z) + 0.8)
 	global_position = want if instant else global_position.lerp(want, 1.0 - exp(-12.0 * delta))
-	fov = cfg.fov
+	# Speed reads through the FOV (REALISM.md R1): up to +10 degrees by ~90 km/h.
+	var rb := target as RigidBody3D
+	var speed := rb.linear_velocity.length() if rb else 0.0
+	_fov_stretch += (clampf(speed * 0.4, 0.0, 10.0) - _fov_stretch) * (1.0 - exp(-3.0 * delta))
+	fov = cfg.fov + _fov_stretch
 	look_at(p + back * lead + Vector3(0, 1.0, 0), Vector3.UP)

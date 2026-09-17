@@ -174,10 +174,26 @@ func set_paint(color: Color) -> void:
 	paint_material.set_shader_parameter("paint_color", color)
 
 
-func set_lights(head: bool, brake: bool, aux: bool) -> void:
+func set_lights(head: bool, brake: bool, reverse: bool, aux: bool) -> void:
 	lamp_material.set_shader_parameter("head", 3.5 if head else 0.0)
 	lamp_material.set_shader_parameter("tail", 3.0 if brake else (0.8 if head else 0.0))
+	lamp_material.set_shader_parameter("indicator", 4.0 if reverse else 0.0)
 	lamp_material.set_shader_parameter("aux", 5.0 if aux else 0.0)
+
+
+var _dirt := 0.0
+
+## Carry the terrain (REALISM.md R1): build up while churning mud, rinse in
+## water, shed very slowly on dry ground. Drives the shader `dirt` uniform.
+func update_dirt(mud: float, surface: int, delta: float) -> void:
+	if surface == 6:  # water rinses
+		_dirt = maxf(_dirt - delta * 0.25, 0.0)
+	elif mud > 0.01:
+		_dirt = minf(_dirt + mud * delta * 0.35, 1.0)
+	else:
+		_dirt = maxf(_dirt - delta * 0.01, 0.0)
+	paint_material.set_shader_parameter("dirt", _dirt)
+	_material("opaque").set_shader_parameter("dirt", _dirt)
 
 
 static func _aim(from: Vector3, to: Vector3, stretch: bool) -> Transform3D:

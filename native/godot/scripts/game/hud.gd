@@ -4,6 +4,8 @@ class_name GameHud
 extends CanvasLayer
 
 signal sensitivity_changed(value: float)
+signal volume_changed(value: float)
+signal lights_toggled(on: bool)
 signal resume_pressed
 signal menu_toggled
 signal vehicle_selected(index: int)
@@ -23,6 +25,9 @@ var _sens_slider: HSlider
 var _sens_value: Label
 var _vehicle_pick: OptionButton
 var _camera_pick: OptionButton
+var _vol_slider: HSlider
+var _vol_value: Label
+var _lights_check: CheckBox
 var _stats_check: CheckBox
 var _help_check: CheckBox
 var _alert_timer := 0.0
@@ -34,7 +39,7 @@ func _ready() -> void:
 	stats = _label(Vector2(-560, 12), 13, Control.PRESET_TOP_RIGHT)
 	stats.visible = false
 	help = _label(Vector2(64, 20), 15, Control.PRESET_TOP_LEFT)  # right of the hamburger
-	help.text = "W/S drive-brake (hold S at a stop to reverse)  A/D steer  Space handbrake\nQ/E gears  L range  X diff lock  R recover  mouse look around\nF winch hook  G reel in  C camera  ` stats  / help"
+	help.text = "W/S drive-brake (hold S at a stop to reverse)  A/D steer  Space handbrake\nQ/E gears  L range  X diff lock  R recover  H lights  mouse look around\nF winch hook  G reel in  C camera  ` stats  / help"
 	help.visible = false
 	_build_menu_button()
 	_build_pause_menu()
@@ -111,6 +116,27 @@ func _build_pause_menu() -> void:
 	_sens_value.text = "1.00x"
 	sens_row.add_child(_sens_value)
 
+	var vol_row := _menu_row(box, "engine volume")
+	_vol_slider = HSlider.new()
+	_vol_slider.min_value = 0.0
+	_vol_slider.max_value = 1.0
+	_vol_slider.step = 0.05
+	_vol_slider.value = 0.7
+	_vol_slider.custom_minimum_size = Vector2(120, 0)
+	_vol_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_vol_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_vol_slider.value_changed.connect(func(v: float) -> void:
+		_vol_value.text = "%d%%" % roundi(v * 100.0)
+		volume_changed.emit(v))
+	vol_row.add_child(_vol_slider)
+	_vol_value = Label.new()
+	_vol_value.text = "70%"
+	vol_row.add_child(_vol_value)
+
+	_lights_check = CheckBox.new()
+	_lights_check.text = "headlights  (H)"
+	_lights_check.toggled.connect(func(on: bool) -> void: lights_toggled.emit(on))
+	box.add_child(_lights_check)
 	_stats_check = CheckBox.new()
 	_stats_check.text = "stats overlay  (`)"
 	_stats_check.toggled.connect(func(on: bool) -> void: stats.visible = on)
@@ -152,10 +178,17 @@ func set_vehicles(names: PackedStringArray) -> void:
 		_vehicle_pick.add_item(n)
 
 
+## Reflect a loaded volume setting without re-emitting volume_changed.
+func set_volume(v: float) -> void:
+	_vol_slider.set_value_no_signal(v)
+	_vol_value.text = "%d%%" % roundi(v * 100.0)
+
+
 ## Reflect current game state when the menu opens, without re-emitting signals.
-func sync_menu(vehicle_index: int, camera_mode: String) -> void:
+func sync_menu(vehicle_index: int, camera_mode: String, lights_on: bool) -> void:
 	_vehicle_pick.select(vehicle_index)
 	_camera_pick.select(1 if camera_mode == "close" else 0)
+	_lights_check.set_pressed_no_signal(lights_on)
 	_stats_check.set_pressed_no_signal(stats.visible)
 	_help_check.set_pressed_no_signal(help.visible)
 

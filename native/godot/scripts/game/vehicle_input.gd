@@ -9,6 +9,7 @@ const KEY_ACTIONS := {
 	KEY_E: "gearUp", KEY_Q: "gearDown", KEY_X: "lock", KEY_L: "range",
 	KEY_C: "camera", KEY_R: "recover", KEY_F: "winch", KEY_P: "pause",
 	KEY_ESCAPE: "pause", KEY_QUOTELEFT: "debug", KEY_SLASH: "help", KEY_V: "nextVehicle",
+	KEY_H: "lights",
 }
 const PAD_ACTIONS := {
 	JOY_BUTTON_A: "recover", JOY_BUTTON_B: "lock", JOY_BUTTON_X: "winch", JOY_BUTTON_Y: "camera",

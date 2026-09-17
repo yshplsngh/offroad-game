@@ -42,6 +42,9 @@ var vegetation: VegetationStreamer
 var vehicle: OffroadVehicle
 var patch: GroundPatch
 var visual: VehicleVisual
+var engine_audio: EngineAudio
+var wheel_fx: WheelFX
+var lights_on := false
 var input: VehicleInput
 var hud: GameHud
 var chase: ChaseCamera
@@ -129,10 +132,19 @@ func _ready() -> void:
 	if not smoke and DisplayServer.get_name() != "headless":
 		chase.mouse_look = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# Procedural engine note (REALISM.md R1); no audio device headless.
+	if DisplayServer.get_name() != "headless":
+		engine_audio = EngineAudio.new()
+		engine_audio.name = "EngineAudio"
+		add_child(engine_audio)
+
 	var cf := ConfigFile.new()
 	if cf.load(SETTINGS_PATH) == OK:
 		chase.sensitivity = clampf(float(cf.get_value("input", "mouse_sensitivity", 1.0)), 0.2, 3.0)
+		if engine_audio:
+			engine_audio.volume = clampf(float(cf.get_value("audio", "engine_volume", 0.7)), 0.0, 1.0)
 	hud.set_sensitivity(chase.sensitivity)
+	hud.set_volume(engine_audio.volume if engine_audio else 0.7)
 	var names := PackedStringArray()
 	for v in vehicles_data.vehicles:
 		names.append(v.name)
@@ -142,6 +154,11 @@ func _ready() -> void:
 	hud.menu_toggled.connect(func() -> void: _set_paused(not paused))
 	hud.camera_selected.connect(func(m: String) -> void: chase.mode = m)
 	hud.vehicle_selected.connect(_on_menu_vehicle)
+	hud.lights_toggled.connect(func(on: bool) -> void: lights_on = on)
+	hud.volume_changed.connect(func(v: float) -> void:
+		if engine_audio:
+			engine_audio.volume = v
+		_save_setting("audio", "engine_volume", v))
 	hud.recover_pressed.connect(func() -> void:
 		hud.say("recovered - resume to see it" if vehicle.flip() else "recovery cooling down", 1.5))
 	hud.quit_pressed.connect(func() -> void: get_tree().quit())
@@ -240,6 +257,12 @@ func _spawn_vehicle(index: int, x: float, z: float, heading: float) -> void:
 	# Place the rig now: swapping vehicles from the pause menu happens with
 	# _process stopped, and the new visual would sit at the origin until resume.
 	visual.global_transform = vehicle.global_transform
+	# Wheel dust/mud/spray emitters at the new hubs (REALISM.md R1).
+	if wheel_fx == null:
+		wheel_fx = WheelFX.new()
+		wheel_fx.name = "WheelFX"
+		add_child(wheel_fx)
+	wheel_fx.setup(vehicle, spec)
 	if chase:
 		chase.target = vehicle
 
@@ -332,6 +355,9 @@ func _on_action(name: String) -> void:
 			hud.say("winch anchored - hold G to reel in" if vehicle.winch_attach() else "winch released")
 		"camera":
 			hud.say("camera: %s" % chase.cycle_mode(), 0.9)
+		"lights":
+			lights_on = not lights_on
+			hud.say("lights on" if lights_on else "lights off", 0.9)
 		"nextVehicle":
 			var p := vehicle.global_position
 			var h: float = vehicle.telemetry().heading
@@ -351,7 +377,7 @@ func _set_paused(p: bool) -> void:
 	if chase and chase.mouse_look:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if p else Input.MOUSE_MODE_CAPTURED
 	if p:
-		hud.sync_menu(vehicle_index, chase.mode)  # menu always opens showing reality
+		hud.sync_menu(vehicle_index, chase.mode, lights_on)  # menu always opens showing reality
 	hud.pause_menu.visible = p
 	hud.say("paused" if p else "resumed")
 
@@ -367,9 +393,13 @@ func _on_menu_vehicle(index: int) -> void:
 
 func _on_sensitivity_changed(v: float) -> void:
 	chase.sensitivity = v
+	_save_setting("input", "mouse_sensitivity", v)
+
+
+func _save_setting(section: String, key: String, value: Variant) -> void:
 	var cf := ConfigFile.new()
 	cf.load(SETTINGS_PATH)  # keep any other sections; a missing file is fine
-	cf.set_value("input", "mouse_sensitivity", v)
+	cf.set_value(section, key, value)
 	cf.save(SETTINGS_PATH)
 
 
@@ -466,7 +496,15 @@ func _process(delta: float) -> void:
 			live, missing, ts.queued, ts.jobs_built, ts.retired, ts.cancelled + ts.dropped_stale,
 			ts.rolling_p95_ms, ts.attach_ms, vs.live_cells, vs.live_batches, vs.live_instances,
 			ps.refills, ps.worst_refill_ms, s.biome]
-	hud.update_hud(vehicle.telemetry(), delta, stats_text)
+	# Realism drive (REALISM.md R1): lights answer the pedals, the body carries
+	# the mud it drove through, the engine answers rpm and throttle.
+	var tel := vehicle.telemetry()
+	visual.set_lights(lights_on, input.brake > 0.0 or _hold, int(tel.gear) == -1,
+			lights_on and bool(tel.low_range))
+	visual.update_dirt(float(tel.mud), int(tel.surface), delta)
+	if engine_audio:
+		engine_audio.update(float(tel.rpm), input.throttle, delta)
+	hud.update_hud(tel, delta, stats_text)
 
 	if smoke and _elapsed > (8.0 if roll_test else 6.0):
 		var t := vehicle.telemetry()
