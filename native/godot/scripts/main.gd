@@ -133,8 +133,17 @@ func _ready() -> void:
 	if cf.load(SETTINGS_PATH) == OK:
 		chase.sensitivity = clampf(float(cf.get_value("input", "mouse_sensitivity", 1.0)), 0.2, 3.0)
 	hud.set_sensitivity(chase.sensitivity)
+	var names := PackedStringArray()
+	for v in vehicles_data.vehicles:
+		names.append(v.name)
+	hud.set_vehicles(names)
 	hud.sensitivity_changed.connect(_on_sensitivity_changed)
 	hud.resume_pressed.connect(func() -> void: _set_paused(false))
+	hud.camera_selected.connect(func(m: String) -> void: chase.mode = m)
+	hud.vehicle_selected.connect(_on_menu_vehicle)
+	hud.recover_pressed.connect(func() -> void:
+		hud.say("recovered - resume to see it" if vehicle.flip() else "recovery cooling down", 1.5))
+	hud.quit_pressed.connect(func() -> void: get_tree().quit())
 
 	if smoke and not smoke_chase:
 		smoke_camera = Camera3D.new()
@@ -227,6 +236,9 @@ func _spawn_vehicle(index: int, x: float, z: float, heading: float) -> void:
 	add_child(visual)
 	if not visual.setup(vehicle, spec, field):
 		_fail("vehicle meshes missing (res://generated/vehicles.bin): run the worldcore_bake build step")
+	# Place the rig now: swapping vehicles from the pause menu happens with
+	# _process stopped, and the new visual would sit at the origin until resume.
+	visual.global_transform = vehicle.global_transform
 	if chase:
 		chase.target = vehicle
 
@@ -332,8 +344,19 @@ func _set_paused(p: bool) -> void:
 	get_tree().paused = p
 	if chase and chase.mouse_look:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if p else Input.MOUSE_MODE_CAPTURED
+	if p:
+		hud.sync_menu(vehicle_index, chase.mode)  # menu always opens showing reality
 	hud.pause_menu.visible = p
 	hud.say("paused" if p else "resumed")
+
+
+func _on_menu_vehicle(index: int) -> void:
+	if index == vehicle_index:
+		return
+	var p := vehicle.global_position
+	var h: float = vehicle.telemetry().heading
+	_spawn_vehicle(index, p.x, p.z, h)
+	hud.say(GameData.vehicle(vehicles_data, vehicle_index).name, 2.0)
 
 
 func _on_sensitivity_changed(v: float) -> void:

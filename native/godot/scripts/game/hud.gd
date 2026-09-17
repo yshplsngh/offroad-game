@@ -5,6 +5,10 @@ extends CanvasLayer
 
 signal sensitivity_changed(value: float)
 signal resume_pressed
+signal vehicle_selected(index: int)
+signal camera_selected(mode: String)
+signal recover_pressed
+signal quit_pressed
 
 const SURFACE_NAMES := ["rock", "gravel", "dirt", "grass", "loam", "mud", "water", "snow"]
 
@@ -15,6 +19,10 @@ var help: Label
 var pause_menu: PanelContainer
 var _sens_slider: HSlider
 var _sens_value: Label
+var _vehicle_pick: OptionButton
+var _camera_pick: OptionButton
+var _stats_check: CheckBox
+var _help_check: CheckBox
 var _alert_timer := 0.0
 
 
@@ -36,7 +44,7 @@ func _build_pause_menu() -> void:
 	pause_menu.set_anchors_preset(Control.PRESET_CENTER)
 	pause_menu.visible = false
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(340, 0)
+	box.custom_minimum_size = Vector2(380, 0)
 	box.add_theme_constant_override("separation", 10)
 	pause_menu.add_child(box)
 
@@ -46,31 +54,81 @@ func _build_pause_menu() -> void:
 	title.add_theme_font_size_override("font_size", 20)
 	box.add_child(title)
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	box.add_child(row)
-	var sens_label := Label.new()
-	sens_label.text = "mouse sensitivity"
-	row.add_child(sens_label)
+	_vehicle_pick = OptionButton.new()
+	_vehicle_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_vehicle_pick.item_selected.connect(func(i: int) -> void: vehicle_selected.emit(i))
+	_menu_row(box, "vehicle").add_child(_vehicle_pick)
+
+	_camera_pick = OptionButton.new()
+	_camera_pick.add_item("chase")
+	_camera_pick.add_item("close")
+	_camera_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_camera_pick.item_selected.connect(
+			func(i: int) -> void: camera_selected.emit("close" if i == 1 else "chase"))
+	_menu_row(box, "camera").add_child(_camera_pick)
+
+	var sens_row := _menu_row(box, "mouse sensitivity")
 	_sens_slider = HSlider.new()
 	_sens_slider.min_value = 0.2
 	_sens_slider.max_value = 3.0
 	_sens_slider.step = 0.05
 	_sens_slider.value = 1.0
-	_sens_slider.custom_minimum_size = Vector2(140, 0)
+	_sens_slider.custom_minimum_size = Vector2(120, 0)
 	_sens_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_sens_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_sens_slider.value_changed.connect(_on_sensitivity)
-	row.add_child(_sens_slider)
+	sens_row.add_child(_sens_slider)
 	_sens_value = Label.new()
 	_sens_value.text = "1.00x"
-	row.add_child(_sens_value)
+	sens_row.add_child(_sens_value)
 
-	var resume := Button.new()
-	resume.text = "resume"
-	resume.pressed.connect(func() -> void: resume_pressed.emit())
-	box.add_child(resume)
+	_stats_check = CheckBox.new()
+	_stats_check.text = "stats overlay  (`)"
+	_stats_check.toggled.connect(func(on: bool) -> void: stats.visible = on)
+	box.add_child(_stats_check)
+	_help_check = CheckBox.new()
+	_help_check.text = "controls help  (/)"
+	_help_check.toggled.connect(func(on: bool) -> void: help.visible = on)
+	box.add_child(_help_check)
+
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 8)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(buttons)
+	for entry in [["resume", func() -> void: resume_pressed.emit()],
+			["recover truck", func() -> void: recover_pressed.emit()],
+			["quit", func() -> void: quit_pressed.emit()]]:
+		var b := Button.new()
+		b.text = entry[0]
+		b.pressed.connect(entry[1])
+		buttons.add_child(b)
 	add_child(pause_menu)
+
+
+func _menu_row(box: VBoxContainer, text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var label := Label.new()
+	label.text = text
+	label.custom_minimum_size = Vector2(130, 0)
+	row.add_child(label)
+	box.add_child(row)
+	return row
+
+
+## Populate the vehicle picker (once, from the catalog).
+func set_vehicles(names: PackedStringArray) -> void:
+	_vehicle_pick.clear()
+	for n in names:
+		_vehicle_pick.add_item(n)
+
+
+## Reflect current game state when the menu opens, without re-emitting signals.
+func sync_menu(vehicle_index: int, camera_mode: String) -> void:
+	_vehicle_pick.select(vehicle_index)
+	_camera_pick.select(1 if camera_mode == "close" else 0)
+	_stats_check.set_pressed_no_signal(stats.visible)
+	_help_check.set_pressed_no_signal(help.visible)
 
 
 func _on_sensitivity(v: float) -> void:
