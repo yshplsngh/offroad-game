@@ -345,7 +345,9 @@ near-vehicle obstacle set         ─► only the small collision radius gets co
 - [ ] Cockpit, bonnet, orbit, cinematic cameras
 - [ ] Trail objectives, waypoints, recovery points, free-roam map
 - [ ] Damage model, fuel, water fording depth
-- [ ] Save/load (start from `worldcore::IntegratedState`), settings, graphics presets
+- [ ] Save/load (start from `worldcore::IntegratedState`), settings, graphics
+      presets — started: pause menu with a mouse-sensitivity slider persisted
+      to `user://settings.cfg` (`[input] mouse_sensitivity`)
 
 **Controls:** `WASD` drive (hold `S` at a stop to reverse) · mouse look ·
 `Space` handbrake · `Q/E` gears · `L` range · `X` diff lock · `R` recover ·

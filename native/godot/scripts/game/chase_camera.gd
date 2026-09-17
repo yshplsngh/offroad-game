@@ -23,6 +23,8 @@ var zoom := 1.0
 ## Mouse look (play only): orbit/elevate with the captured mouse; the view
 ## eases back behind the truck once the mouse rests and the truck is moving.
 var mouse_look := false
+## User multiplier on MOUSE_SENSITIVITY, set from the pause menu (0.2-3.0).
+var sensitivity := 1.0
 var _yaw := 0.0
 var _pitch := 0.0
 var _mouse_idle := 0.0
@@ -48,8 +50,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not mouse_look or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
 	if event is InputEventMouseMotion:
-		orbit = wrapf(orbit - event.relative.x * MOUSE_SENSITIVITY, -PI, PI)
-		_pitch = clampf(_pitch + event.relative.y * MOUSE_SENSITIVITY, PITCH_MIN, PITCH_MAX)
+		var sens := MOUSE_SENSITIVITY * sensitivity
+		orbit = wrapf(orbit - event.relative.x * sens, -PI, PI)
+		_pitch = clampf(_pitch + event.relative.y * sens, PITCH_MIN, PITCH_MAX)
 		_mouse_idle = 0.0
 
 

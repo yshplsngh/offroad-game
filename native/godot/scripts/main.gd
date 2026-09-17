@@ -20,6 +20,8 @@
 #   --replay=ID --trace=PATH  run a fixed driving replay headless and write its trace
 extends Node3D
 
+const SETTINGS_PATH := "user://settings.cfg"
+
 var seed := 1337
 var vehicle_index := 0
 var smoke := false
@@ -127,6 +129,12 @@ func _ready() -> void:
 	if not smoke and DisplayServer.get_name() != "headless":
 		chase.mouse_look = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	var cf := ConfigFile.new()
+	if cf.load(SETTINGS_PATH) == OK:
+		chase.sensitivity = clampf(float(cf.get_value("input", "mouse_sensitivity", 1.0)), 0.2, 3.0)
+	hud.set_sensitivity(chase.sensitivity)
+	hud.sensitivity_changed.connect(_on_sensitivity_changed)
+	hud.resume_pressed.connect(func() -> void: _set_paused(false))
 
 	if smoke and not smoke_chase:
 		smoke_camera = Camera3D.new()
@@ -281,13 +289,13 @@ func _on_action(name: String) -> void:
 	match name:
 		"click":
 			# Left click returns to mouse view: recapture the cursor and, if the
-			# pause released it, resume.
+			# pause released it, resume. Clicks on the pause menu are consumed
+			# by the GUI and never get here.
 			if chase and chase.mouse_look and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 				if paused:
-					paused = false
-					get_tree().paused = false
-					hud.say("resumed")
+					_set_paused(false)
+				else:
+					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		"gearUp":
 			if vehicle.shift_up(): hud.say("gear %s" % vehicle.telemetry().gear_name, 0.8)
 		"gearDown":
@@ -312,15 +320,28 @@ func _on_action(name: String) -> void:
 			_spawn_vehicle(vehicle_index + 1, p.x, p.z, h)
 			hud.say(GameData.vehicle(vehicles_data, vehicle_index).name, 2.0)
 		"pause":
-			paused = not paused
-			get_tree().paused = paused
-			if chase.mouse_look:
-				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if paused else Input.MOUSE_MODE_CAPTURED
-			hud.say("paused" if paused else "resumed")
+			_set_paused(not paused)
 		"debug":
 			hud.stats.visible = not hud.stats.visible
 		"help":
 			hud.help.visible = not hud.help.visible
+
+
+func _set_paused(p: bool) -> void:
+	paused = p
+	get_tree().paused = p
+	if chase and chase.mouse_look:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if p else Input.MOUSE_MODE_CAPTURED
+	hud.pause_menu.visible = p
+	hud.say("paused" if p else "resumed")
+
+
+func _on_sensitivity_changed(v: float) -> void:
+	chase.sensitivity = v
+	var cf := ConfigFile.new()
+	cf.load(SETTINGS_PATH)  # keep any other sections; a missing file is fine
+	cf.set_value("input", "mouse_sensitivity", v)
+	cf.save(SETTINGS_PATH)
 
 
 func _physics_process(_delta: float) -> void:
