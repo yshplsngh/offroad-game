@@ -22,6 +22,8 @@ inline worldcore::VehicleSpec vehicle_spec_from_json(const json::Value& vehicles
         for (size_t i = 0; i < p["gearRatios"].size(); i++) s.perf.gearRatios.at(i) = p["gearRatios"][i].n;
         s.perf.finalDrive = p["finalDrive"].n;
         s.perf.brakeTorque = p["brakeTorque"].n;
+        if (p.has("tireGrip")) s.perf.tireGrip = p["tireGrip"].n;
+        if (p.has("tractionControl")) s.perf.tractionControl = p["tractionControl"].n;
         s.wheelbase = v["frame"]["wheelbase"].n;
         s.track = v["axle"]["track"].n;
         s.suspensionTravel = v["suspension"]["travel"].n;

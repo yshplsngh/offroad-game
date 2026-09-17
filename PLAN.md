@@ -93,9 +93,17 @@ vegetation: ~363 draw calls (p95), ~625k primitives, 68 MB; vegetation boot adds
   stream work ≤ 2.3 ms and GPU ≤ 8 ms in those frames — not the streamer, not the
   GPU. Suspected cold shader/pipeline cache or system load; **not proven**.
   Worker count (1 vs 4) made no measurable difference.
-- **A rolled truck falls through the world** — the chassis has no collider
-  against the analytic ground (inherited from the reference). Fix in milestone 3
-  with a small heightfield collider patch under the truck.
+- ~~A rolled truck falls through the world~~ — fixed: `GroundCollider`
+  (`scripts/game/ground_collider.gd`) keeps a 64 m, 2 m-spacing `HeightMapShape3D`
+  under and ahead of the truck, filled by `TerrainField.height_grid` in C++
+  (~0.6–1.1 ms per re-centre). Trunk/boulder colliders are still milestone 3.
+- **Timberwolf is retuned as the supercar "Timberwolf SS"** (data only: 900 kW,
+  1800 N m, tall gears, `lowRangeRatio` 1, `tireGrip` 1.5, `tractionControl` 0.9).
+  `tireGrip` / `tractionControl` are optional per-vehicle perf fields (defaults keep
+  the reference model bit-identical; golden tests and parity pass). Its golden
+  drivetrain session pins the original reference perf. Headless run on a dry
+  gravel strip: 0–100 km/h 7.8 s, ~125 km/h max (stock trucks ~67 km/h); above
+  that the rough terrain keeps it airborne, so top speed is terrain-limited.
 - **Sierra HD cannot hold still on full brake** in low first at idle (~0.5 m/s;
   Ridgeback ~0.09 m/s). Inherited; brake torque vs `clutchCreep` tuning item.
 - `Performance.TIME_PROCESS` includes the vsync wait (reads 16–70 ms while the

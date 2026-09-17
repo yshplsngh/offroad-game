@@ -8,6 +8,7 @@
 
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
@@ -30,6 +31,9 @@ public:
     Dictionary sample(double x, double z) const;
     /// Vector3 spawn point; y is ground height. Falls back to the query point.
     Vector3 find_spawn(double x, double z) const;
+    /// Heights on a regular grid, row-major (z rows of x), for HeightMapShape3D
+    /// map_data: sample (i, j) is at (x0 + i * spacing, z0 + j * spacing).
+    PackedFloat32Array height_grid(double x0, double z0, int width, int depth, double spacing) const;
     /// One cell as a mesh positioned cell-local (place the node at cx*128, 0, cz*128).
     Ref<ArrayMesh> build_chunk(int cx, int cz, int lod) const;
 

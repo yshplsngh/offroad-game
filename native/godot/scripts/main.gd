@@ -23,6 +23,7 @@ var smoke := false
 var smoke_chase := false
 var smoke_orbit := 0.0
 var smoke_zoom := 1.0
+var ground: GroundCollider
 var stream_workers := 0
 var screenshot := ""
 var capture_path := ""
@@ -93,6 +94,8 @@ func _ready() -> void:
 
 	var spawn := field.find_spawn(0.0, 0.0)
 	_spawn_vehicle(vehicle_index, spawn.x, spawn.z, 0.0)
+	ground = GroundCollider.new(field)
+	add_child(ground)
 
 	input = VehicleInput.new()
 	input.name = "Input"
@@ -282,6 +285,7 @@ func _on_action(name: String) -> void:
 func _physics_process(_delta: float) -> void:
 	if vehicle == null:
 		return
+	ground.follow(vehicle)
 	if smoke:
 		# Foot on the brake: in low first the truck creeps at idle, like the reference.
 		vehicle.set_input(0, 1, 0, 0, 0)

@@ -137,6 +137,9 @@ struct VehiclePerf {
     int forwardGears = 5;
     double finalDrive = 4.56;
     double brakeTorque = 3600;
+    // Road-car options (not in the browser reference; the defaults leave the model bit-identical).
+    double tireGrip = 1;          // multiplier on surface friction: performance tyres
+    double tractionControl = 0;   // cap wheel drive torque at this fraction of tyre grip; 0 = off
 };
 
 }  // namespace worldcore

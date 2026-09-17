@@ -292,8 +292,8 @@
     {
       "rhd": false,
       "id": "timberwolf",
-      "name": "Timberwolf",
-      "tagline": "Light, cheap, unkillable. The one you actually wheel.",
+      "name": "Timberwolf SS",
+      "tagline": "Supercar engine in a trail rig. 900 kW, sticky tyres, traction control.",
       "frame": {
         "frameWidth": 0.92,
         "railHeight": 0.14,
@@ -349,19 +349,21 @@
       },
       "perf": {
         "mass": 1620,
-        "power": 190,
-        "torque": 320,
-        "topSpeed": 36,
-        "lowRangeRatio": 2.72,
+        "power": 900,
+        "torque": 1800,
+        "topSpeed": 85,
+        "lowRangeRatio": 1,
         "gearRatios": [
-          3.6,
-          2.1,
-          1.4,
-          1,
-          0.78
+          3,
+          2,
+          1.45,
+          1.1,
+          0.8
         ],
-        "finalDrive": 4.56,
-        "brakeTorque": 3600
+        "finalDrive": 3.3,
+        "brakeTorque": 6000,
+        "tireGrip": 1.5,
+        "tractionControl": 0.9
       },
       "physics": {
         "wheelRadius": 0.4191,
