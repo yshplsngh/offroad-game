@@ -301,14 +301,19 @@ func _on_action(name: String) -> void:
 		return
 	match name:
 		"click":
-			# Left click returns to mouse view: recapture the cursor and, if the
-			# pause released it, resume. Clicks on the pause menu are consumed
-			# by the GUI and never get here.
-			if chase and chase.mouse_look and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-				if paused:
-					_set_paused(false)
-				else:
-					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			# Left click toggles the menu. While driving the cursor is captured
+			# for mouse look, so there is nothing to aim at the hamburger with -
+			# and no other play action uses the button - so any click opens the
+			# menu. With the cursor free, a click off the panel resumes (panel
+			# clicks are consumed by the GUI and never get here).
+			if chase == null or not chase.mouse_look:
+				return
+			if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+				_set_paused(true)
+			elif paused:
+				_set_paused(false)
+			else:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		"gearUp":
 			if vehicle.shift_up(): hud.say("gear %s" % vehicle.telemetry().gear_name, 0.8)
 		"gearDown":
