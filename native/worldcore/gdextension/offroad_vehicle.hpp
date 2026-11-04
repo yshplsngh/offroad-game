@@ -43,6 +43,9 @@ public:
     Dictionary telemetry() const;
     /// {steer, spin, travel, contact, load, slip, surface} for wheel 0..3 (FL FR RL RR).
     Dictionary wheel(int index) const;
+    /// World-space winch anchor while attached (telemetry `winch` is true);
+    /// Vector3(0, -1e9, 0) otherwise. State exposure only - no physics here.
+    Vector3 winch_anchor() const;
     int get_steps() const { return steps_; }
     double get_ride_height() const;
 

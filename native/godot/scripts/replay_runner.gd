@@ -11,6 +11,7 @@ const FIXED_DT := 1.0 / 60.0
 
 var replay_id: String
 var trace_path: String
+var game_tune := false
 var replay: Dictionary
 var trace_every := 6
 var total_steps := 0
@@ -20,9 +21,10 @@ var spawn: Vector3
 var frames: Array = []
 
 
-func _init(p_replay_id: String, p_trace_path: String) -> void:
+func _init(p_replay_id: String, p_trace_path: String, p_game_tune := false) -> void:
 	replay_id = p_replay_id
 	trace_path = p_trace_path
+	game_tune = p_game_tune
 
 
 func _ready() -> void:
@@ -45,13 +47,24 @@ func _ready() -> void:
 	vehicle = OffroadVehicle.new()
 	vehicle.name = "Vehicle"
 	add_child(vehicle)
-	# Parity is against the browser reference: the game handling layer stays neutral.
+	# Parity is against the browser reference: the game handling layer and the
+	# R4 physics-evolution fields stay neutral. --game-tune records instead a
+	# native-vs-native baseline with the shipped tune (REALISM.md R4).
 	var tune := GameData.load_json("tune")
-	tune.merge({"handlingGrip": 1.0, "handlingSlideGrip": 0.0, "handlingDamping": 1.0, "handlingAntiRoll": 1.0}, true)
+	if not game_tune:
+		tune.merge({"handlingGrip": 1.0, "handlingSlideGrip": 0.0, "handlingDamping": 1.0,
+				"handlingAntiRoll": 1.0, "brakeHold": 0.0, "tireRelax": 0.0, "rollSpread": 0.0}, true)
 	if not vehicle.configure(spec, tune, field):
 		_quit(2, "vehicle configure failed")
 		return
 	vehicle.spawn(spawn.x, spawn.z, float(replay.heading))
+	# Same physics world as the game: the chassis ground patch rides along. The
+	# chassis never touches ground in the frozen replays, so traces are
+	# unchanged - tools/parity.sh is the proof.
+	var patch := GroundPatch.new()
+	patch.name = "GroundPatch"
+	add_child(patch)
+	patch.configure(field, vehicle)
 	set_physics_process_priority(0)
 
 

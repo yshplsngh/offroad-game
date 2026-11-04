@@ -115,6 +115,15 @@ struct Tune {
     double handlingSlideGrip = 0.85; // fraction of peak grip a sliding or spinning tyre keeps
     double handlingDamping = 1.8;    // multiplies bump and rebound damping
     double handlingAntiRoll = 3.0;   // multiplies both anti-roll bars
+    // R4 physics evolution (REALISM.md), same pattern: neutral values (0)
+    // reproduce the reference bit-identically; reference_tune() pins them.
+    double brakeHold = 1.0;   // re-clamp braked wheels after the diffs re-inject
+                              // engine spin - the brake-held creep's engine (0 = reference)
+    double tireRelax = 0.30;  // tire force relaxation length in metres: the carcass
+                              // winds up over rolled distance, killing the crawl-speed
+                              // slip oscillation of the point model (0 = reference)
+    double rollSpread = 1.0;  // scales per-surface rolling-resistance deviation from
+                              // the flat reference scale (0 = reference)
 };
 
 /// X-macro over every Tune field, for loaders and the data-drift test.
@@ -132,7 +141,7 @@ struct Tune {
     X(steerSpeedFalloff) X(steerMinFraction) X(steerRate) X(steerReturnRate) X(ackermann)     \
     X(winchForce) X(winchSpeed) X(winchRange) X(winchStiffness) X(flipCooldown) X(flipLift)   \
     X(stuckSpeed) X(stuckRate) X(handlingGrip) X(handlingSlideGrip) X(handlingDamping)            \
-    X(handlingAntiRoll)
+    X(handlingAntiRoll) X(brakeHold) X(tireRelax) X(rollSpread)
 
 /// The browser reference's tuning: `t` with the game handling layer neutral.
 inline Tune reference_tune(Tune t = Tune{}) {
@@ -140,6 +149,9 @@ inline Tune reference_tune(Tune t = Tune{}) {
     t.handlingSlideGrip = 0.0;
     t.handlingDamping = 1.0;
     t.handlingAntiRoll = 1.0;
+    t.brakeHold = 0.0;
+    t.tireRelax = 0.0;
+    t.rollSpread = 0.0;
     return t;
 }
 

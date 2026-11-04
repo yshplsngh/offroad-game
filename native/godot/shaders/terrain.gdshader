@@ -70,8 +70,10 @@ void fragment() {
 		albedo = mix(albedo, stone, rock * (0.55 + 0.45 * fade));
 		rough = mix(rough, 0.82, rock);
 	}
-	albedo *= 1.0 - wet * 0.42;
-	rough = mix(rough, 0.35, wet);
+	// Wetness telegraphs risk (REALISM.md R2): darker and glossier = wetter =
+	// more viscous, before the wheels commit.
+	albedo *= 1.0 - wet * 0.55;
+	rough = mix(rough, 0.28, wet);
 
 	ALBEDO = albedo;
 	ROUGHNESS = rough;
